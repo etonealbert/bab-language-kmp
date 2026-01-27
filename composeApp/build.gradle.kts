@@ -18,18 +18,19 @@ kotlin {
         }
     }
 
-    // --- CHANGE 1: XCFramework Configuration for SPM ---
-    // We define the XCFramework container here
-    val xcf = XCFramework("Shared") // This will be the module name in Swift: import Shared
+    // --- FIX: Only configure iOS if the computer is a Mac ---
+    if (System.getProperty("os.name").startsWith("Mac")) {
+        val xcf = XCFramework("Shared") // Define the XCFramework
 
-    listOf(
-        iosArm64(),
-        iosSimulatorArm64()
-    ).forEach { iosTarget ->
-        iosTarget.binaries.framework {
-            baseName = "Shared" // Must match the XCFramework name
-            isStatic = false    // Dynamic is usually better for SPM local packages
-            xcf.add(this)       // Link this target to the XCFramework task
+        listOf(
+            iosArm64(),
+            iosSimulatorArm64()
+        ).forEach { iosTarget ->
+            iosTarget.binaries.framework {
+                baseName = "Shared"
+                isStatic = false
+                xcf.add(this)
+            }
         }
     }
     // ---------------------------------------------------
