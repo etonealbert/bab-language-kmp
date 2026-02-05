@@ -65,6 +65,9 @@ kotlin {
             // 6. Serialization
             implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
 
+            // 7. DateTime (Cross-platform timestamps)
+            implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.6.0")
+
             // --- REMOVED UI LIBS ---
             // compose.runtime, foundation, material3, etc. are GONE.
             // androidMain dependencies for compose are GONE.
@@ -78,6 +81,11 @@ kotlin {
         iosMain.dependencies {
             // iOS-specific logic (e.g. Ktor Darwin engine)
             implementation(libs.ktor.client.darwin)
+        }
+
+        commonTest.dependencies {
+            implementation("org.jetbrains.kotlin:kotlin-test:2.0.0")
+            implementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.0")
         }
     }
 }
