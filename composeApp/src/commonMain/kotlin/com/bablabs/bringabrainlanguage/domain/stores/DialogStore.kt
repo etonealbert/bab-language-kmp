@@ -11,12 +11,14 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlin.coroutines.CoroutineContext
 
 class DialogStore(
     private val networkSession: NetworkSession,
-    private val aiProvider: AIProvider
+    private val aiProvider: AIProvider,
+    coroutineContext: CoroutineContext = Dispatchers.Default
 ) {
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val scope = CoroutineScope(SupervisorJob() + coroutineContext)
     
     private val _state = MutableStateFlow(SessionState(localPeerId = networkSession.localPeerId))
     val state: StateFlow<SessionState> = _state.asStateFlow()
@@ -52,6 +54,45 @@ class DialogStore(
                                 "ai-robot" to Role("robot", "Robot", "AI partner")
                             ),
                             currentPhase = GamePhase.ACTIVE
+                        )
+                    )
+                )
+                networkSession.send(packet)
+            }
+            
+            is Intent.HostGame -> {
+                val packet = Packet(
+                    type = PacketType.FULL_STATE_SNAPSHOT,
+                    senderId = networkSession.localPeerId,
+                    vectorClock = _state.value.vectorClock,
+                    payload = PacketPayload.FullStateSnapshot(
+                        _state.value.copy(
+                            mode = SessionMode.HOST,
+                            connectionStatus = ConnectionStatus.CONNECTING,
+                            scenario = intent.scenario,
+                            roles = mapOf(
+                                networkSession.localPeerId to intent.userRole
+                            ),
+                            currentPhase = GamePhase.ACTIVE
+                        )
+                    )
+                )
+                networkSession.send(packet)
+            }
+            
+            is Intent.JoinGame -> {
+                val packet = Packet(
+                    type = PacketType.FULL_STATE_SNAPSHOT,
+                    senderId = networkSession.localPeerId,
+                    vectorClock = _state.value.vectorClock,
+                    payload = PacketPayload.FullStateSnapshot(
+                        _state.value.copy(
+                            mode = SessionMode.CLIENT,
+                            connectionStatus = ConnectionStatus.CONNECTING,
+                            roles = mapOf(
+                                networkSession.localPeerId to intent.userRole
+                            ),
+                            currentPhase = GamePhase.WAITING
                         )
                     )
                 )
@@ -139,6 +180,16 @@ class DialogStore(
     sealed class Intent {
         data class StartSoloGame(
             val scenario: Scenario,
+            val userRole: Role
+        ) : Intent()
+        
+        data class HostGame(
+            val scenario: Scenario,
+            val userRole: Role
+        ) : Intent()
+        
+        data class JoinGame(
+            val hostDeviceId: String,
             val userRole: Role
         ) : Intent()
         

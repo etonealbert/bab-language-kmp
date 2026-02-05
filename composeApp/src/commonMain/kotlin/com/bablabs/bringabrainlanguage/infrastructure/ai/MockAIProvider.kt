@@ -11,6 +11,8 @@ import kotlin.random.Random
 
 class MockAIProvider : AIProvider {
     
+    private var lineCounter = 0L
+    
     private val mockDialogs = mapOf(
         "coffee" to listOf(
             MockLine("Hola, bienvenido. Que deseas tomar?", "Hello, welcome. What would you like to drink?"),
@@ -41,9 +43,10 @@ class MockAIProvider : AIProvider {
         
         val selectedLine = lines[context.previousLines.size % lines.size]
         val timestamp = Clock.System.now().toEpochMilliseconds()
+        val uniqueId = lineCounter++
         
         return DialogLine(
-            id = "line-$timestamp",
+            id = "line-$uniqueId",
             speakerId = "ai-${context.aiRole.lowercase().replace(" ", "-")}",
             roleName = context.aiRole,
             textNative = selectedLine.native,

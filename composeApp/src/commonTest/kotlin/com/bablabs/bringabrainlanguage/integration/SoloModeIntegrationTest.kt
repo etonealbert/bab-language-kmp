@@ -4,20 +4,25 @@ import com.bablabs.bringabrainlanguage.domain.models.*
 import com.bablabs.bringabrainlanguage.domain.stores.DialogStore
 import com.bablabs.bringabrainlanguage.infrastructure.ai.MockAIProvider
 import com.bablabs.bringabrainlanguage.infrastructure.network.LoopbackNetworkSession
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class SoloModeIntegrationTest {
     
     @Test
     fun completeSoloGameFlowWorksEndToEnd() = runTest {
+        val testDispatcher = UnconfinedTestDispatcher(testScheduler)
         val session = LoopbackNetworkSession("player-1")
         val store = DialogStore(
             networkSession = session,
-            aiProvider = MockAIProvider()
+            aiProvider = MockAIProvider(),
+            coroutineContext = testDispatcher
         )
         
         val coffeeScenario = Scenario(
@@ -35,7 +40,7 @@ class SoloModeIntegrationTest {
             userRole = coffeeScenario.availableRoles[1]
         ))
         
-        delay(100)
+        advanceUntilIdle()
         
         val stateAfterStart = store.state.value
         
@@ -45,7 +50,7 @@ class SoloModeIntegrationTest {
         
         store.accept(DialogStore.Intent.Generate)
         
-        delay(600)
+        advanceUntilIdle()
         
         val stateAfterGenerate = store.state.value
         
@@ -59,10 +64,12 @@ class SoloModeIntegrationTest {
     
     @Test
     fun multipleGenerateCallsProduceSequentialDialog() = runTest {
+        val testDispatcher = UnconfinedTestDispatcher(testScheduler)
         val session = LoopbackNetworkSession("player-1")
         val store = DialogStore(
             networkSession = session,
-            aiProvider = MockAIProvider()
+            aiProvider = MockAIProvider(),
+            coroutineContext = testDispatcher
         )
         
         store.accept(DialogStore.Intent.StartSoloGame(
@@ -70,11 +77,11 @@ class SoloModeIntegrationTest {
             userRole = Role("user", "User", "Test")
         ))
         
-        delay(100)
+        advanceUntilIdle()
         
         repeat(3) {
             store.accept(DialogStore.Intent.Generate)
-            delay(600)
+            advanceUntilIdle()
         }
         
         val finalState = store.state.value

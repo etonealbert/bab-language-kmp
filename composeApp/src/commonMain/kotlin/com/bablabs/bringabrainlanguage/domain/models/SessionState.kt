@@ -28,7 +28,7 @@ enum class SessionMode { SOLO, HOST, CLIENT }
 enum class ConnectionStatus { DISCONNECTED, CONNECTING, CONNECTED, RECONNECTING }
 
 @Serializable
-enum class GamePhase { LOBBY, ROLE_SELECTION, ACTIVE, VOTING, FINISHED }
+enum class GamePhase { LOBBY, ROLE_SELECTION, WAITING, ACTIVE, VOTING, FINISHED }
 
 @Serializable
 data class Scenario(
