@@ -1,112 +1,130 @@
-import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.plugin.mpp.apple.XCFramework
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
-    alias(libs.plugins.androidApplication)
-    alias(libs.plugins.composeMultiplatform)
-    alias(libs.plugins.composeCompiler)
-    // Add serialization plugin if you plan to use JSON (highly recommended)
-    // kotlin("plugin.serialization") version "1.9.23"
+    alias(libs.plugins.androidLibrary)
+    alias(libs.plugins.kotlinSerialization)
+
+    id("maven-publish")
 }
 
 kotlin {
+    // 1. Android Target (Library Mode)
     androidTarget {
+        publishLibraryVariants("release") // Publish only the release version
         compilerOptions {
             jvmTarget.set(JvmTarget.JVM_11)
         }
     }
 
-    // --- FIX: Only configure iOS if the computer is a Mac ---
-    if (System.getProperty("os.name").startsWith("Mac")) {
-        val xcf = XCFramework("Shared") // Define the XCFramework
+    // 2. iOS Target (XCFramework)
+    // We export dependencies so Swift can see "Store", "StateFlow", etc.
+    val xcf = XCFramework("Shared")
 
-        listOf(
-            iosArm64(),
-            iosSimulatorArm64()
-        ).forEach { iosTarget ->
-            iosTarget.binaries.framework {
-                baseName = "Shared"
-                isStatic = false
-                xcf.add(this)
-            }
+    listOf(
+        iosArm64(),
+        iosSimulatorArm64()
+    ).forEach { iosTarget ->
+        iosTarget.binaries.framework {
+            baseName = "Shared"
+            isStatic = true // Static frameworks are often easier for SPM distribution
+
+            // CRITICAL: Export the architecture libs so they are visible in Swift
+            export(libs.decompose)
+            export(libs.mvikotlin.main)
+            // Do NOT export Coroutines/Serialization usually (implementation details)
+
+            xcf.add(this)
         }
     }
-    // ---------------------------------------------------
 
     sourceSets {
-        androidMain.dependencies {
-            implementation(libs.compose.uiToolingPreview)
-            implementation(libs.androidx.activity.compose)
-            // Add Kable (Bluetooth) for Android specifically if needed
-            implementation("com.juul.kable:core:0.30.0")
-        }
         commonMain.dependencies {
-            // --- EXISTING UI LIBS ---
-            implementation(libs.compose.runtime)
-            implementation(libs.compose.foundation)
-            implementation(libs.compose.material3)
-            implementation(libs.compose.ui)
-            implementation(libs.compose.components.resources)
-            implementation(libs.compose.uiToolingPreview)
-            implementation(libs.androidx.lifecycle.viewmodelCompose)
-            implementation(libs.androidx.lifecycle.runtimeCompose)
+            // --- ARCHITECTURE (The "Brain") ---
 
-            // --- CHANGE 2: YOUR NEW ARCHITECTURE LIBS (MVI + Logic) ---
-            // Note: I am using hardcoded versions here to ensure they work immediately.
-            // You can move these to libs.versions.toml later.
+            // 1. Decompose (Navigation)
+            // Use core only. Remove "extensions-compose" to keep SDK pure.
+            api(libs.decompose)
 
-            // 1. Decompose (Navigation & Lifecycle)
-            implementation("com.arkivanov.decompose:decompose:3.1.0")
-            implementation("com.arkivanov.decompose:extensions-compose:3.1.0")
+            // 2. MVIKotlin (State)
+            api(libs.mvikotlin)
+            api(libs.mvikotlin.main)
+            implementation(libs.mvikotlin.extensions.coroutines)
 
-            // 2. MVIKotlin (State Management)
-            implementation("com.arkivanov.mvikotlin:mvikotlin:4.0.0")
-            implementation("com.arkivanov.mvikotlin:mvikotlin-main:4.0.0")
-            implementation("com.arkivanov.mvikotlin:mvikotlin-extensions-coroutines:4.0.0")
-            // 3. Kable (Bluetooth Low Energy)
+            // 3. Networking & Data
+            implementation(libs.ktor.client.core) // You'll need this
+            implementation(libs.ktor.client.content.negotiation)
+
+            // 4. Bluetooth
             implementation("com.juul.kable:core:0.30.0")
 
-            // 4. Coroutines (Async logic)
+            // 5. Coroutines (Async)
             implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.0")
 
-            // 5. Serialization (For saving Dialogs/Profiles to JSON)
-            // implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
+            // 6. Serialization
+            implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
+
+            // --- REMOVED UI LIBS ---
+            // compose.runtime, foundation, material3, etc. are GONE.
+            // androidMain dependencies for compose are GONE.
         }
-        commonTest.dependencies {
-            implementation(libs.kotlin.test)
+
+        androidMain.dependencies {
+            // Android-specific logic (e.g. Ktor OkHttp engine)
+            implementation(libs.ktor.client.okhttp)
+        }
+
+        iosMain.dependencies {
+            // iOS-specific logic (e.g. Ktor Darwin engine)
+            implementation(libs.ktor.client.darwin)
         }
     }
 }
 
 android {
-    namespace = "com.bablabs.bringabrainlanguage"
+    namespace = "com.bablabs.bringabrain.sdk" // Differentiate SDK namespace
     compileSdk = libs.versions.android.compileSdk.get().toInt()
 
     defaultConfig {
-        applicationId = "com.bablabs.bringabrainlanguage"
         minSdk = libs.versions.android.minSdk.get().toInt()
-        targetSdk = libs.versions.android.targetSdk.get().toInt()
-        versionCode = 1
-        versionName = "1.0"
     }
-    packaging {
-        resources {
-            excludes += "/META-INF/{AL2.0,LGPL2.1}"
+
+    // Publishing configuration for Android
+    publishing {
+        singleVariant("release") {
+            withSourcesJar()
+            withJavadocJar()
         }
     }
-    buildTypes {
-        getByName("release") {
-            isMinifyEnabled = false
-        }
-    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
 }
 
-dependencies {
-    debugImplementation(libs.compose.uiTooling)
+// 3. Maven Publishing (Android)
+publishing {
+    publications {
+        create<MavenPublication>("maven") {
+            afterEvaluate {
+                from(components["release"])
+            }
+            groupId = "com.bablabs"
+            artifactId = "brain-sdk"
+            version = "1.0.0" // Change this for every release
+        }
+    }
+    repositories {
+        // Publish to GitHub Packages
+        maven {
+            name = "GitHubPackages"
+            url = uri("https://maven.pkg.github.com/YOUR_GITHUB_USER/bab-language-kmp")
+            credentials {
+                username = System.getenv("GITHUB_ACTOR")
+                password = System.getenv("GITHUB_TOKEN")
+            }
+        }
+    }
 }
