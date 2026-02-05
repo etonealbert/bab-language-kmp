@@ -20,7 +20,7 @@ This SDK is distributed as a binary XCFramework via Swift Package Manager (SPM).
 2. Go to **File > Add Package Dependencies...**
 3. Enter the repository URL:
    ```text
-   [https://github.com/YOUR_GITHUB_USERNAME/bab-language-kmp](https://github.com/YOUR_GITHUB_USERNAME/bab-language-kmp)
+   [https://github.com/etonealbert/bab-language-kmp](https://github.com/etonealbert/bab-language-kmp)
 
 ```
 
@@ -50,7 +50,7 @@ dependencyResolutionManagement {
     repositories {
         maven {
             name = "GitHubPackages"
-            url = uri("[https://maven.pkg.github.com/YOUR_GITHUB_USERNAME/bab-language-kmp](https://maven.pkg.github.com/YOUR_GITHUB_USERNAME/bab-language-kmp)")
+            url = uri("[https://maven.pkg.github.com/etonealbert/bab-language-kmp](https://maven.pkg.github.com/etonealbert/bab-language-kmp)")
             credentials {
                 username = "YOUR_GITHUB_USERNAME"
                 password = "YOUR_GITHUB_PAT" // Personal Access Token
