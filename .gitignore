@@ -10,8 +10,7 @@ local.properties
 captures
 .externalNativeBuild
 .cxx
-*.xcodeproj/*
-!*.xcodeproj/project.pbxproj
+*.xcodeproj/xcuserdata/
 !*.xcodeproj/xcshareddata/
 !*.xcodeproj/project.xcworkspace/
 !*.xcworkspace/contents.xcworkspacedata

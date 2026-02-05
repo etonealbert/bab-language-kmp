@@ -64,8 +64,7 @@ kotlin {
             // 2. MVIKotlin (State Management)
             implementation("com.arkivanov.mvikotlin:mvikotlin:4.0.0")
             implementation("com.arkivanov.mvikotlin:mvikotlin-main:4.0.0")
-            implementation("com.arkivanov.mvikotlin:mvikotlin-coroutines:4.0.0")
-
+            implementation("com.arkivanov.mvikotlin:mvikotlin-extensions-coroutines:4.0.0")
             // 3. Kable (Bluetooth Low Energy)
             implementation("com.juul.kable:core:0.30.0")
 
