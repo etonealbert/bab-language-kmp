@@ -20,14 +20,14 @@ kotlin {
 
     // 2. iOS Target (XCFramework)
     // We export dependencies so Swift can see "Store", "StateFlow", etc.
-    val xcf = XCFramework("Shared")
+    val xcf = XCFramework("BabLanguageSDK")
 
     listOf(
         iosArm64(),
         iosSimulatorArm64()
     ).forEach { iosTarget ->
         iosTarget.binaries.framework {
-            baseName = "Shared"
+            baseName = "BabLanguageSDK"
             isStatic = true // Static frameworks are often easier for SPM distribution
 
             // CRITICAL: Export the architecture libs so they are visible in Swift

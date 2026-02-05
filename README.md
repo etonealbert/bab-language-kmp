@@ -26,7 +26,7 @@ A Kotlin Multiplatform library that provides all business logic for a role-playi
 ### iOS (SwiftUI)
 
 ```swift
-import Shared
+import BabLanguageSDK
 
 struct ContentView: View {
     let sdk = BrainSDK()
@@ -143,7 +143,7 @@ data class SessionState(
 3. Select branch: `main`
 
 ```swift
-import Shared
+import BabLanguageSDK
 
 let sdk = BrainSDK()
 ```
@@ -272,7 +272,7 @@ composeApp/src/
 | Task | Command |
 |------|---------|
 | Run all tests | `./gradlew :composeApp:allTests` |
-| Build iOS XCFramework | `./gradlew :composeApp:assembleSharedXCFramework` |
+| Build iOS XCFramework | `./gradlew :composeApp:assembleBabLanguageSDKXCFramework` |
 | Build Android AAR | `./gradlew :composeApp:assembleRelease` |
 
 ### Test Coverage

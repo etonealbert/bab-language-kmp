@@ -225,7 +225,7 @@ class IOSNativeLLMBridge : NativeLLMBridge {
 In your iOS app initialization:
 
 ```swift
-import Shared // The KMP framework
+import BabLanguageSDK // The KMP framework
 
 @main
 struct MyApp: App {
