@@ -1,35 +1,113 @@
-This is a Kotlin Multiplatform project targeting Android, iOS.
+# Bring a Brain SDK (Core Logic)
 
-* [/composeApp](./composeApp/src) is for code that will be shared across your Compose Multiplatform applications.
-  It contains several subfolders:
-  - [commonMain](./composeApp/src/commonMain/kotlin) is for code that’s common for all targets.
-  - Other folders are for Kotlin code that will be compiled for only the platform indicated in the folder name.
-    For example, if you want to use Apple’s CoreCrypto for the iOS part of your Kotlin app,
-    the [iosMain](./composeApp/src/iosMain/kotlin) folder would be the right place for such calls.
-    Similarly, if you want to edit the Desktop (JVM) specific part, the [jvmMain](./composeApp/src/jvmMain/kotlin)
-    folder is the appropriate location.
+**The "Brain" of the Bring a Brain Language Learning Platform.**
 
-* [/iosApp](./iosApp/iosApp) contains iOS applications. Even if you’re sharing your UI with Compose Multiplatform,
-  you need this entry point for your iOS app. This is also where you should add SwiftUI code for your project.
+This repository contains the pure business logic, state management (MVI), and networking layer for the Bring a Brain application. It is strictly a **Logic SDK**—it contains NO UI components.
 
-### Build and Run Android Application
-
-To build and run the development version of the Android app, use the run configuration from the run widget
-in your IDE’s toolbar or build it directly from the terminal:
-- on macOS/Linux
-  ```shell
-  ./gradlew :composeApp:assembleDebug
-  ```
-- on Windows
-  ```shell
-  .\gradlew.bat :composeApp:assembleDebug
-  ```
-
-### Build and Run iOS Application
-
-To build and run the development version of the iOS app, use the run configuration from the run widget
-in your IDE’s toolbar or open the [/iosApp](./iosApp) directory in Xcode and run it from there.
+- **Architecture:** MVIKotlin + Decompose
+- **Networking:** Ktor (WebSockets) + Kable (Bluetooth Low Energy)
+- **State:** Kotlin Multiplatform (CommonMain)
+- **Targets:** iOS (XCFramework) & Android (AAR)
 
 ---
 
-Learn more about [Kotlin Multiplatform](https://www.jetbrains.com/help/kotlin-multiplatform-dev/get-started.html)…
+## 📦 Installation for Consumers
+
+### iOS Developers (SwiftUI)
+This SDK is distributed as a binary XCFramework via Swift Package Manager (SPM).
+
+1. Open your iOS Project in **Xcode**.
+2. Go to **File > Add Package Dependencies...**
+3. Enter the repository URL:
+   ```text
+   [https://github.com/YOUR_GITHUB_USERNAME/bab-language-kmp](https://github.com/YOUR_GITHUB_USERNAME/bab-language-kmp)
+
+```
+
+4. Select the **main** branch (or a specific Release Tag).
+5. **Important:** If asked for authentication, you must have a GitHub Account connected to Xcode.
+
+**Usage in Swift:**
+
+```swift
+import Shared // The SDK Module
+
+// Initialize the Logic
+let sdk = BrainSDK()
+print(sdk.initialize())
+
+```
+
+### Android Developers (Jetpack Compose)
+
+This SDK is distributed via GitHub Packages.
+
+**1. Add the Repository**
+In your `settings.gradle.kts`:
+
+```kotlin
+dependencyResolutionManagement {
+    repositories {
+        maven {
+            name = "GitHubPackages"
+            url = uri("[https://maven.pkg.github.com/YOUR_GITHUB_USERNAME/bab-language-kmp](https://maven.pkg.github.com/YOUR_GITHUB_USERNAME/bab-language-kmp)")
+            credentials {
+                username = "YOUR_GITHUB_USERNAME"
+                password = "YOUR_GITHUB_PAT" // Personal Access Token
+            }
+        }
+    }
+}
+
+```
+
+**2. Add the Dependency**
+In your `libs.versions.toml`:
+
+```toml
+[libraries]
+brain-sdk = { group = "com.bablabs", name = "brain-sdk", version = "1.0.0" }
+
+```
+
+**3. Implement**
+In your `app/build.gradle.kts`:
+
+```kotlin
+dependencies {
+    implementation(libs.brain.sdk)
+}
+
+```
+
+---
+
+## 🛠 Internal Development (Contributors)
+
+If you are working **on** the SDK itself (adding logic, fixing bugs), follow these steps.
+
+### Prerequisites
+
+* **Android Studio** (Koala or newer)
+* **JDK 17** (Do NOT use JDK 25)
+* **Xcode 15+** (For iOS compilation)
+
+### Build Commands
+
+| Task | Command | Output Location |
+| --- | --- | --- |
+| **Build iOS Binary** | `./gradlew :composeApp:assembleSharedXCFramework` | `composeApp/build/XCFrameworks/release/` |
+| **Build Android Binary** | `./gradlew :composeApp:assembleRelease` | `composeApp/build/outputs/aar/` |
+| **Run Tests** | `./gradlew check` | `build/reports/` |
+
+### Architecture Overview
+
+The code lives in `composeApp/src/commonMain`. We follow a strict **"Headless"** architecture:
+
+* **Decompose Components:** Handle navigation state (e.g., `RootComponent`, `GameComponent`).
+* **MVI Stores:** Handle logic state (e.g., `DialogStore`, `ConnectionStore`).
+* **Repositories:** Abstract data sources (Local DB vs. Bluetooth vs. Server).
+
+**DO NOT add `@Composable` functions to `commonMain`.** UI belongs in the client apps, not here.
+
+
