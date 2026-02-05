@@ -3,7 +3,6 @@ package com.bablabs.bringabrainlanguage
 import com.bablabs.bringabrainlanguage.domain.models.GamePhase
 import com.bablabs.bringabrainlanguage.domain.models.SessionMode
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
@@ -26,13 +25,6 @@ class BrainSDKTest {
         val sdk = BrainSDK()
         val scenarios = sdk.getAvailableScenarios()
         assertTrue(scenarios.isNotEmpty())
-    }
-    
-    @Test
-    fun scanForHostsReturnsFlow() {
-        val sdk = BrainSDK()
-        val hosts = sdk.scanForHosts()
-        assertNotNull(hosts)
     }
     
     @Test

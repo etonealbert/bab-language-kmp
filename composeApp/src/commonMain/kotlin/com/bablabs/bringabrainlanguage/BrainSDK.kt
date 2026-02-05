@@ -1,9 +1,12 @@
 package com.bablabs.bringabrainlanguage
 
+import com.bablabs.bringabrainlanguage.domain.interfaces.AIProvider
 import com.bablabs.bringabrainlanguage.domain.models.Role
 import com.bablabs.bringabrainlanguage.domain.models.Scenario
 import com.bablabs.bringabrainlanguage.domain.models.SessionState
 import com.bablabs.bringabrainlanguage.domain.stores.DialogStore
+import com.bablabs.bringabrainlanguage.infrastructure.ai.AICapabilities
+import com.bablabs.bringabrainlanguage.infrastructure.ai.DeviceCapabilities
 import com.bablabs.bringabrainlanguage.infrastructure.ai.MockAIProvider
 import com.bablabs.bringabrainlanguage.infrastructure.network.LoopbackNetworkSession
 import com.bablabs.bringabrainlanguage.infrastructure.network.ble.DiscoveredDevice
@@ -11,28 +14,32 @@ import com.bablabs.bringabrainlanguage.infrastructure.network.ble.createBleScann
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.emptyFlow
 import kotlin.coroutines.CoroutineContext
 import kotlin.random.Random
 
 class BrainSDK(
+    aiProvider: AIProvider? = null,
     coroutineContext: CoroutineContext = Dispatchers.Default
 ) {
     private val networkSession = LoopbackNetworkSession(
         localPeerId = generatePeerId()
     )
     
-    private val aiProvider = MockAIProvider()
+    private val resolvedAIProvider: AIProvider = aiProvider 
+        ?: DeviceCapabilities.getBestAvailableProvider()
     
     private val dialogStore = DialogStore(
         networkSession = networkSession,
-        aiProvider = aiProvider,
+        aiProvider = resolvedAIProvider,
         coroutineContext = coroutineContext
     )
     
     private val bleScanner by lazy { createBleScanner() }
     
     val state: StateFlow<SessionState> = dialogStore.state
+    
+    val aiCapabilities: AICapabilities
+        get() = DeviceCapabilities.check()
     
     fun startSoloGame(scenarioId: String, userRoleId: String) {
         val scenario = getScenarioById(scenarioId)
