@@ -27,7 +27,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlin.coroutines.CoroutineContext
-import kotlin.native.ObjCName
 import kotlin.random.Random
 
 class BrainSDK(
@@ -50,7 +49,6 @@ class BrainSDK(
      * let sdk = BrainSDK()
      * ```
      */
-    @ObjCName("init", exact = true)
     constructor() : this(
         aiProvider = null,
         coroutineContext = Dispatchers.Default,
