@@ -278,6 +278,21 @@ import BabLanguageSDK
   - Now a minimal SDK manifest with only BLE permissions
   - Lint errors resolved
 
+#### 4G: Native Persistence Documentation
+- `docs/ios/coredata-persistence-guide.md` - CoreData implementation guide (~600 lines)
+  - Complete data model specifications for all 6 entities
+  - CoreData entity designs with relationships and indexes
+  - Swift protocol implementations for all 4 repository interfaces
+  - SDK integration patterns with dependency injection
+  - Migration strategies and best practices
+- `docs/android/room-persistence-guide.md` - Room implementation guide (~700 lines)
+  - Gradle setup with KSP annotation processing
+  - Room entity definitions with proper type mappings
+  - DAO interfaces with efficient queries and indexes
+  - Repository implementations bridging Room to SDK interfaces
+  - Hilt/Dagger dependency injection examples
+  - Migration strategies using Room's built-in tools
+
 **Test Results**: 100 unit tests passing
 
 **Build Status**: Clean build (no lint errors)

@@ -83,6 +83,8 @@ Language learning features are now implemented:
 | `CODING_STANDARDS.md` | Writing code |
 | `SESSION_HISTORY.md` | Understanding past decisions |
 | `docs/ios-foundation-model-integration.md` | iOS 26 AI integration |
+| `docs/ios/coredata-persistence-guide.md` | CoreData implementation for iOS apps |
+| `docs/android/room-persistence-guide.md` | Room implementation for Android apps |
 | `docs/plans/*.md` | Architecture decisions |
 
 ## Common Tasks
