@@ -1,0 +1,27 @@
+{
+  "object" : {
+    "artifacts" : [
+      {
+        "kind" : "xcframework",
+        "packageRef" : {
+          "identity" : "bab-language-kmp",
+          "kind" : "root",
+          "location" : "/Users/whatsername/codebase/bab-language-kmp",
+          "name" : "bab-language-kmp"
+        },
+        "path" : "/Users/whatsername/codebase/bab-language-kmp/composeApp/build/XCFrameworks/release/Shared.xcframework",
+        "source" : {
+          "type" : "local"
+        },
+        "targetName" : "Shared"
+      }
+    ],
+    "dependencies" : [
+
+    ],
+    "prebuilts" : [
+
+    ]
+  },
+  "version" : 7
+}
