@@ -4,6 +4,7 @@ import com.bablabs.bringabrainlanguage.domain.interfaces.AIProvider
 import com.bablabs.bringabrainlanguage.domain.interfaces.DialogContext
 import com.bablabs.bringabrainlanguage.domain.models.DialogLine
 import kotlinx.coroutines.flow.Flow
+import kotlinx.datetime.Clock
 
 enum class LLMAvailability {
     AVAILABLE,
@@ -90,23 +91,25 @@ class NativeLLMProvider(
             
             val textNative = nativeRegex.find(jsonMatch)?.groupValues?.get(1) ?: response
             val textTranslated = translatedRegex.find(jsonMatch)?.groupValues?.get(1) ?: ""
+            val now = Clock.System.now().toEpochMilliseconds()
             
             DialogLine(
-                id = "native-${System.currentTimeMillis()}",
+                id = "native-$now",
                 speakerId = "ai-${context.aiRole.lowercase().replace(" ", "-")}",
                 roleName = context.aiRole,
                 textNative = textNative,
                 textTranslated = textTranslated,
-                timestamp = System.currentTimeMillis()
+                timestamp = now
             )
         } catch (e: Exception) {
+            val now = Clock.System.now().toEpochMilliseconds()
             DialogLine(
-                id = "native-${System.currentTimeMillis()}",
+                id = "native-$now",
                 speakerId = "ai-${context.aiRole.lowercase().replace(" ", "-")}",
                 roleName = context.aiRole,
                 textNative = response,
                 textTranslated = "",
-                timestamp = System.currentTimeMillis()
+                timestamp = now
             )
         }
     }

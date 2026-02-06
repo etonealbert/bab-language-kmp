@@ -18,7 +18,12 @@ data class SessionState(
     val voteResults: Map<String, Boolean> = emptyMap(),
     
     val vectorClock: VectorClock = VectorClock(),
-    val lastSyncTimestamp: Long = 0L
+    val lastSyncTimestamp: Long = 0L,
+    
+    val playerContexts: Map<String, PlayerContext> = emptyMap(),
+    val activePlotTwist: PlotTwist? = null,
+    val recentFeedback: List<Feedback> = emptyList(),
+    val sessionStats: SessionStats? = null
 )
 
 @Serializable

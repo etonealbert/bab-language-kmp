@@ -124,6 +124,62 @@ class DialogStore(
             is Intent.LeaveGame -> {
                 networkSession.disconnect()
             }
+            
+            is Intent.RequestHint -> {
+                val now = kotlinx.datetime.Clock.System.now().toEpochMilliseconds()
+                _state.value = _state.value.copy(
+                    recentFeedback = _state.value.recentFeedback + Feedback.PrivateNudge(
+                        playerId = networkSession.localPeerId,
+                        hintLevel = intent.level,
+                        content = "Hint requested",
+                        triggeredAt = now
+                    )
+                )
+            }
+            
+            is Intent.TriggerPlotTwist -> {
+                val now = kotlinx.datetime.Clock.System.now().toEpochMilliseconds()
+                val twist = PlotTwist(
+                    id = "twist-${_state.value.vectorClock.timestamps.size}",
+                    description = intent.description,
+                    visualAsset = null,
+                    triggeredAt = now,
+                    affectsPlayers = _state.value.roles.keys.toList(),
+                    expiresAt = null
+                )
+                _state.value = _state.value.copy(
+                    activePlotTwist = twist,
+                    vectorClock = _state.value.vectorClock.increment(networkSession.localPeerId)
+                )
+            }
+            
+            is Intent.SetSecretObjective -> {
+                val objective = SecretObjective(
+                    playerId = intent.playerId,
+                    objective = intent.objective
+                )
+                val currentContext = _state.value.playerContexts[intent.playerId] ?: PlayerContext(
+                    playerId = intent.playerId,
+                    proficiencyLevel = CEFRLevel.A1,
+                    vocabularyHints = emptyList(),
+                    grammarFocus = null,
+                    secretObjective = null,
+                    preferredComplexity = 1
+                )
+                val updatedContext = currentContext.copy(secretObjective = objective)
+                _state.value = _state.value.copy(
+                    playerContexts = _state.value.playerContexts + (intent.playerId to updatedContext),
+                    vectorClock = _state.value.vectorClock.increment(networkSession.localPeerId)
+                )
+            }
+            
+            is Intent.EndSession -> {
+                _state.value = _state.value.copy(
+                    currentPhase = GamePhase.FINISHED,
+                    vectorClock = _state.value.vectorClock.increment(networkSession.localPeerId)
+                )
+                networkSession.disconnect()
+            }
         }
     }
     
@@ -196,5 +252,16 @@ class DialogStore(
         data object Generate : Intent()
         
         data object LeaveGame : Intent()
+        
+        data class RequestHint(val level: HintLevel) : Intent()
+        
+        data class TriggerPlotTwist(val description: String) : Intent()
+        
+        data class SetSecretObjective(
+            val playerId: String,
+            val objective: String
+        ) : Intent()
+        
+        data object EndSession : Intent()
     }
 }

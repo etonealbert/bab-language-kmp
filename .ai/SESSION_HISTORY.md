@@ -194,6 +194,96 @@ import BabLanguageSDK
 
 ---
 
+### Phase 4: Language Learning Features Implementation
+
+**Date**: 2026-02-05
+
+**Goal**: Implement pedagogically-sound language learning features based on approved design.
+
+**Completed**:
+
+#### 4A: Domain Models (Prior Session)
+- `UserProfile.kt` - Full learner profile with CEFR levels, interests, goals
+- `VocabularyEntry.kt` - Word with SRS fields (mastery 0-5, ease factor, intervals)
+- `Feedback.kt` - NarrativeRecast, PrivateNudge, SessionReport sealed class
+- `PedagogicalModels.kt` - PlotTwist, SecretObjective, PlayerContext, NudgeRequest
+- `UserProgress.kt` - Streaks, XP, levels, achievements
+- `SessionStats.kt` - Per-session performance metrics
+- `CEFRLevel.kt` - A1-C2 proficiency levels
+- `LanguageCode.kt` - ISO language codes
+
+#### 4B: Domain Services
+- `SRSScheduler.kt` - SM-2 inspired spaced repetition algorithm
+  - Calculates next review based on quality rating (0-5)
+  - Adjusts ease factor dynamically
+  - Tracks mastery levels (0-5)
+  - 15 unit tests
+- `XPCalculator.kt` - Gamification XP calculation
+  - Base XP for dialog participation
+  - Bonuses for first correct, streaks, difficulty
+  - Collaborative multipliers
+  - 12 unit tests
+
+#### 4C: Repository Interfaces & Implementations
+- `UserProfileRepository.kt` - Profile persistence interface
+- `VocabularyRepository.kt` - Vocabulary CRUD with SRS queries
+- `ProgressRepository.kt` - XP, achievements, streaks
+- `DialogHistoryRepository.kt` - Saved sessions with `SavedSession` model
+- `InMemoryUserProfileRepository.kt` - Default in-memory implementation
+- `InMemoryVocabularyRepository.kt` - Default in-memory implementation
+- `InMemoryProgressRepository.kt` - Default in-memory implementation
+- `InMemoryDialogHistoryRepository.kt` - Default in-memory implementation
+
+#### 4D: SDK & Store Updates
+- `SessionState.kt` - Added pedagogical fields:
+  - `playerContexts: Map<String, PlayerContext>` - Per-player difficulty contexts
+  - `activePlotTwist: PlotTwist?` - Current AI Director intervention
+  - `recentFeedback: List<Feedback>` - Recent corrections/nudges
+  - `sessionStats: SessionStats?` - Current session metrics
+- `DialogStore.kt` - New intents:
+  - `RequestHint` - Safety net for anxious learners
+  - `TriggerPlotTwist` - AI Director interventions
+  - `SetSecretObjective` - Information gaps
+  - `EndSession` - Clean session termination
+- `BrainSDK.kt` - Major rewrite with:
+  - Repository injection pattern (UserProfile, Vocabulary, Progress, DialogHistory)
+  - New StateFlows: `userProfile`, `vocabularyStats`, `dueReviews`, `progress`
+  - Onboarding methods: `completeOnboarding()`, `isOnboardingRequired()`, `updateProfile()`
+  - Vocabulary methods: `getVocabularyForReview()`, `recordVocabularyReview()`, `addToVocabulary()`, `createVocabularyEntry()`
+  - Progress methods: `getProgress()`, `getSessionHistory()`
+  - Pedagogical methods: `requestHint()`, `triggerPlotTwist()`, `setSecretObjective()`
+  - Lifecycle: `endSession()`
+- `VectorClock.kt` - Changed from `@JvmInline value class` to `data class` for KMP compatibility
+- `NativeLLMProvider.kt` - Fixed `System.currentTimeMillis()` to `Clock.System.now().toEpochMilliseconds()`
+
+#### 4E: iOS Documentation
+- `docs/ios/integration-guide.md` - Comprehensive integration guide (~450 lines)
+  - SDK installation via SPM
+  - SwiftUI patterns for state observation
+  - Session lifecycle management
+  - Vocabulary and SRS integration
+  - Progress tracking and gamification
+- `docs/ios/sdk-architecture.md` - Architecture deep dive (~350 lines)
+  - MVI pattern explanation
+  - State flow diagrams
+  - Repository injection patterns
+  - Error handling strategies
+- `docs/ios/api-reference.md` - Swift API quick reference (~400 lines)
+  - All public classes and methods
+  - Swift-friendly type mappings
+  - Code examples for each API
+
+#### 4F: Build Fixes
+- Fixed `AndroidManifest.xml` - Removed non-existent `MainActivity` reference
+  - Now a minimal SDK manifest with only BLE permissions
+  - Lint errors resolved
+
+**Test Results**: 100 unit tests passing
+
+**Build Status**: Clean build (no lint errors)
+
+---
+
 ### Phase 4 Design: Language Learning Features
 
 **Date**: 2026-02-05
@@ -373,17 +463,7 @@ import BabLanguageSDK
 
 ## Future Considerations
 
-### Phase 4: Language Learning Features (NEXT)
-
-Implementation of the approved design:
-- User onboarding & profiles
-- Vocabulary SRS system
-- Pedagogical AI Director features
-- Progress & gamification
-
-See: `docs/plans/2026-02-05-language-learning-features-design.md`
-
-### Phase 5: WebSocket Backend
+### Phase 5: WebSocket Backend (NEXT)
 
 - Rust server (Axum framework)
 - WebSocket NetworkSession implementation

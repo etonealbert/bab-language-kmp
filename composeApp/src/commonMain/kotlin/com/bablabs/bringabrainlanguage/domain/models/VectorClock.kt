@@ -3,8 +3,7 @@ package com.bablabs.bringabrainlanguage.domain.models
 import kotlinx.serialization.Serializable
 
 @Serializable
-@JvmInline
-value class VectorClock(val timestamps: Map<String, Long> = emptyMap()) {
+data class VectorClock(val timestamps: Map<String, Long> = emptyMap()) {
     
     fun increment(peerId: String): VectorClock {
         val next = (timestamps[peerId] ?: 0L) + 1

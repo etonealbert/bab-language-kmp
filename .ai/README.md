@@ -55,12 +55,12 @@ User Action → Intent → Executor → Packet → NetworkSession → Reducer �
 - **Phase 1**: Core SDK ✅
 - **Phase 2**: BLE Multiplayer ✅
 - **Phase 3**: iOS 26 LLM docs ✅
-- **Phase 4**: Language Learning Features 📋 (designed, pending implementation)
+- **Phase 4**: Language Learning Features ✅ (100 tests passing)
 - **Phase 5**: WebSocket backend 📋 (planned)
 
-## Phase 4 Design Summary
+## Phase 4 Implementation Summary
 
-The next major feature set adds pedagogically-sound language learning:
+Language learning features are now implemented:
 
 | Feature | Purpose |
 |---------|---------|
