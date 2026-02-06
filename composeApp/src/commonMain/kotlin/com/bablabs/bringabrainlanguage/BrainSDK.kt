@@ -27,6 +27,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlin.coroutines.CoroutineContext
+import kotlin.native.ObjCName
 import kotlin.random.Random
 
 class BrainSDK(
@@ -37,6 +38,28 @@ class BrainSDK(
     private val progressRepository: ProgressRepository = InMemoryProgressRepository(),
     private val dialogHistoryRepository: DialogHistoryRepository = InMemoryDialogHistoryRepository()
 ) {
+    
+    /**
+     * Convenience constructor for iOS/Swift.
+     * 
+     * Kotlin default parameter values are not exposed as separate Swift initializers.
+     * This secondary constructor enables `BrainSDK()` in Swift without DI boilerplate.
+     * 
+     * Usage (Swift):
+     * ```swift
+     * let sdk = BrainSDK()
+     * ```
+     */
+    @ObjCName("init", exact = true)
+    constructor() : this(
+        aiProvider = null,
+        coroutineContext = Dispatchers.Default,
+        userProfileRepository = InMemoryUserProfileRepository(),
+        vocabularyRepository = InMemoryVocabularyRepository(),
+        progressRepository = InMemoryProgressRepository(),
+        dialogHistoryRepository = InMemoryDialogHistoryRepository()
+    )
+    
     private val scope = CoroutineScope(SupervisorJob() + coroutineContext)
     
     private val networkSession = LoopbackNetworkSession(
