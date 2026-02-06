@@ -109,19 +109,131 @@ struct ContentView: View {
         }
         .onAppear {
             sdk.startSoloGame(scenarioId: "coffee-shop", userRoleId: "customer")
-            observeState()
         }
-    }
-    
-    private func observeState() {
-        Task {
+        .task {
+            // SKIE enables native Swift AsyncSequence iteration!
             for await state in sdk.state {
-                await MainActor.run {
-                    dialogLines = state.dialogHistory
-                }
+                dialogLines = state.dialogHistory
             }
         }
     }
+}
+```
+
+---
+
+## SKIE Integration
+
+This SDK uses [SKIE](https://skie.touchlab.co/) (Swift Kotlin Interface Enhancer) to provide a native Swift experience. SKIE automatically bridges Kotlin constructs to Swift equivalents.
+
+### What SKIE Provides
+
+| Kotlin Feature | Swift Result | Benefit |
+|----------------|--------------|---------|
+| `StateFlow<T>` | `AsyncSequence` | Use `for await` loops |
+| `suspend fun` | `async` function | Native `async/await` |
+| `sealed class` | Exhaustive `switch` | Compiler-enforced handling |
+| Default parameters | Overloaded methods | Call with fewer arguments |
+
+### Observing StateFlows
+
+With SKIE, all `StateFlow` properties become Swift `AsyncSequence` types. Use SwiftUI's `.task` modifier for automatic lifecycle management:
+
+```swift
+struct GameView: View {
+    let sdk: BrainSDK
+    @State private var sessionState: SessionState?
+    @State private var profile: UserProfile?
+    
+    var body: some View {
+        VStack {
+            if let state = sessionState {
+                Text("Mode: \(state.mode)")
+                Text("Dialog lines: \(state.dialogHistory.count)")
+            }
+        }
+        .task {
+            // Automatically cancels when view disappears
+            for await state in sdk.state {
+                self.sessionState = state
+            }
+        }
+        .task {
+            for await profile in sdk.userProfile {
+                self.profile = profile
+            }
+        }
+    }
+}
+```
+
+### SwiftUI Helpers (Preview)
+
+SKIE includes experimental SwiftUI-specific APIs for even cleaner code:
+
+#### `Observing` View
+
+Observe flows without `@State` properties:
+
+```swift
+import BabLanguageSDK
+
+struct ProfileView: View {
+    let sdk: BrainSDK
+    
+    var body: some View {
+        Observing(sdk.userProfile) { profile in
+            if let profile = profile {
+                Text("Welcome, \(profile.displayName)")
+            } else {
+                Text("Please complete onboarding")
+            }
+        }
+    }
+}
+```
+
+#### `.collect` Modifier
+
+Collect flow values directly into `@State`:
+
+```swift
+struct StatsView: View {
+    let sdk: BrainSDK
+    @State private var stats: VocabularyStats?
+    
+    var body: some View {
+        VStack {
+            Text("Total words: \(stats?.total ?? 0)")
+            Text("Mastered: \(stats?.masteredCount ?? 0)")
+        }
+        .collect(sdk.vocabularyStats, into: $stats)
+    }
+}
+```
+
+#### Multiple Flows
+
+Observe multiple flows simultaneously:
+
+```swift
+Observing(sdk.userProfile, sdk.progress, sdk.vocabularyStats) { profile, progress, stats in
+    DashboardView(profile: profile, progress: progress, stats: stats)
+}
+```
+
+### Calling Suspend Functions
+
+Kotlin `suspend` functions become Swift `async` functions:
+
+```swift
+// Kotlin: suspend fun completeOnboarding(profile: UserProfile)
+// Swift:  func completeOnboarding(profile: UserProfile) async
+
+func saveProfile() async {
+    let profile = UserProfile(...)
+    await sdk.completeOnboarding(profile: profile)
+    // StateFlow updates automatically propagate via for await loops
 }
 ```
 

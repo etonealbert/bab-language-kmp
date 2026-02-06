@@ -25,16 +25,19 @@ A Kotlin Multiplatform library that provides all business logic for a role-playi
 
 ### iOS (SwiftUI)
 
+The SDK uses [SKIE](https://skie.touchlab.co/) for native Swift interoperability. StateFlows become AsyncSequences, suspend functions become async.
+
 ```swift
+import SwiftUI
 import BabLanguageSDK
 
 struct ContentView: View {
     let sdk = BrainSDK()
+    @State private var sessionState: SessionState?
     
     var body: some View {
         VStack {
-            // Observe state changes
-            Text("Mode: \(sdk.state.value.mode)")
+            Text("Mode: \(sessionState?.mode.description ?? "None")")
             
             Button("Start Solo Game") {
                 sdk.startSoloGame(scenarioId: "coffee-shop", userRoleId: "customer")
@@ -42,6 +45,12 @@ struct ContentView: View {
             
             Button("Generate Dialog") {
                 sdk.generate()
+            }
+        }
+        .task {
+            // Reactive observation with SKIE
+            for await state in sdk.state {
+                self.sessionState = state
             }
         }
     }
