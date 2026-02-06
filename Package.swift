@@ -1,22 +1,23 @@
-// swift-tools-version:6.0
+// swift-tools-version:5.9
 import PackageDescription
 
 let package = Package(
-    name: "Shared",
+    name: "BabLanguageSDK",
     platforms: [
-        .iOS(.v18),
-        .macOS(.v15)
+        .iOS(.v15),
+        .macOS(.v12)
     ],
     products: [
         .library(
-            name: "Shared",
-            targets: ["Shared"]
+            name: "BabLanguageSDK",
+            targets: ["BabLanguageSDK"]
         ),
     ],
     targets: [
         .binaryTarget(
-            name: "Shared",
-            path: "./composeApp/build/XCFrameworks/release/Shared.xcframework"
+            name: "BabLanguageSDK",
+            url: "https://github.com/etonealbert/bab-language-kmp/releases/download/v1.0.0/BabLanguageSDK.xcframework.zip",
+            checksum: "PLACEHOLDER_CHECKSUM_REPLACE_AFTER_UPLOAD"
         ),
     ]
 )
