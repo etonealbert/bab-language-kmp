@@ -1,0 +1,76 @@
+name: Release iOS SDK
+
+on:
+  push:
+    tags:
+      - 'v*' # Only trigger when you push a tag like v1.0.1
+
+permissions:
+  contents: write # Required to create releases and push changes
+
+jobs:
+  build-and-release:
+    runs-on: macos-latest # MUST be macOS to build XCFrameworks
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Gradle
+        uses: gradle/gradle-build-action@v2
+
+      - name: Build XCFramework
+        run: ./gradlew :composeApp:assembleBabLanguageSDKXCFramework
+
+      - name: Package and Checksum
+        id: package
+        run: |
+          cd composeApp/build/XCFrameworks/release
+          
+          # 1. Zip the framework
+          zip -r BabLanguageSDK.xcframework.zip BabLanguageSDK.xcframework
+          
+          # 2. Compute Checksum
+          CHECKSUM=$(swift package compute-checksum BabLanguageSDK.xcframework.zip)
+          echo "CHECKSUM=$CHECKSUM" >> $GITHUB_OUTPUT
+          
+          # 3. Get the Version from the tag (e.g., v1.0.1 -> 1.0.1)
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd composeApp/build/XCFrameworks/release
+          gh release create ${{ github.ref_name }} BabLanguageSDK.xcframework.zip \
+            --title "${{ github.ref_name }}" \
+            --notes "Automated release for iOS"
+
+      - name: Update Package.swift
+        run: |
+          # Define new values
+          NEW_URL="https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/BabLanguageSDK.xcframework.zip"
+          NEW_CHECKSUM="${{ steps.package.outputs.CHECKSUM }}"
+          
+          # Use regex to replace the old URL and Checksum in Package.swift
+          # sed -i '' means "edit file in place" on macOS
+          sed -i '' "s|url: \".*\"|url: \"$NEW_URL\"|" Package.swift
+          sed -i '' "s|checksum: \".*\"|checksum: \"$NEW_CHECKSUM\"|" Package.swift
+          
+          # Check if it actually changed
+          git diff Package.swift
+
+      - name: Commit and Push Package.swift
+        run: |
+          git config user.name "GitHub Actions Bot"
+          git config user.email "<>"
+          git add Package.swift
+          git commit -m "Update Package.swift for ${{ github.ref_name }}"
+          git push origin HEAD:main
