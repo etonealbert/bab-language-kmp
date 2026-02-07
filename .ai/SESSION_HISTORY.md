@@ -496,3 +496,225 @@ import BabLanguageSDK
 - Voice input/output
 - Pronunciation scoring
 - Multi-language scenarios
+
+---
+
+## Session: February 7, 2025 - BLE Multiplayer SDK Implementation
+
+### Goal
+Implement the SDK-side multiplayer types and methods designed in the BLE multiplayer design document.
+
+### Completed
+
+#### New Model Files Created
+1. **`PronunciationModels.kt`** - Speech recognition results
+   - `PronunciationResult` - Accuracy, errors, duration, skipped flag
+   - `WordError` - Per-word mispronunciation details
+   - `LineVisibility` enum - PRIVATE (reading) vs COMMITTED (theater view)
+   - Factory methods: `PronunciationResult.skipped()`, `PronunciationResult.perfect(duration)`
+
+2. **`LobbyModels.kt`** - Multiplayer lobby state
+   - `LobbyPlayer` - Peer ID, name, assigned role, ready state, connection quality
+   - `ConnectionQuality` enum - EXCELLENT, GOOD, FAIR, POOR
+   - `ConnectedPeer` - Basic peer info for tracking
+
+3. **`GamificationModels.kt`** - Scoring and leaderboards
+   - `PlayerStats` - Lines completed, errors, perfect lines, streaks, XP
+   - `SessionLeaderboard` - Real-time rankings
+   - `PlayerRanking` - Rank, score, highlight text
+   - `SessionSummary` - End-game statistics
+   - `UnlockedAchievement` - Multiplayer achievement unlocks
+   - `LineXPBreakdown` - Per-line XP calculation
+
+4. **`OutgoingPacket.kt`** - BLE transmission wrapper
+   - `targetPeerId` - null for broadcast, specific ID for unicast
+   - `data: ByteArray` - Serialized packet bytes
+   - Factory methods: `broadcast()`, `unicast()`
+
+#### Enhanced Existing Files
+
+1. **`DialogLine.kt`** - Added multiplayer fields:
+   - `assignedToPlayerId: String` - Who should read this line
+   - `visibility: LineVisibility` - PRIVATE while reading, COMMITTED after
+   - `pronunciationResult: PronunciationResult?` - Filled when completed
+
+2. **`SessionState.kt`** - Added 12 multiplayer fields:
+   - `lobbyPlayers: List<LobbyPlayer>` - Players in lobby
+   - `isAdvertising: Boolean` - BLE advertising state
+   - `connectedPeers: List<ConnectedPeer>` - Connected devices
+   - `currentTurnPlayerId: String?` - Whose turn
+   - `pendingLine: DialogLine?` - Line being read (PRIVATE)
+   - `committedHistory: List<DialogLine>` - Theater view
+   - `playerStats: Map<String, PlayerStats>` - Per-player performance
+   - `sessionLeaderboard: SessionLeaderboard?` - Rankings
+   - `sessionSummary: SessionSummary?` - End-game summary
+
+3. **`Packet.kt`** - Added 7 new packet types:
+   - `LINE_COMPLETED`, `LINE_SKIPPED` - Turn completion
+   - `ROLE_ASSIGNED`, `PLAYER_READY` - Lobby management
+   - `GAME_STARTED`, `TURN_ADVANCED` - Game flow
+   - `LEADERBOARD_UPDATE` - Real-time rankings
+   - Corresponding `PacketPayload` sealed class variants
+
+4. **`DialogStore.kt`** - Added 11 new Intent types:
+   - `StartAdvertising`, `StopAdvertising` - BLE advertising
+   - `PeerConnected`, `PeerDisconnected` - Connection events
+   - `DataReceived` - BLE data callback
+   - `CompleteLine`, `SkipLine` - Turn completion
+   - `AssignRole`, `SetPlayerReady` - Lobby management
+   - `StartMultiplayerGame` - Game start
+   - Corresponding execute handlers and reduce handlers
+
+5. **`BrainSDK.kt`** - Added 11 new public methods:
+   - `startHostAdvertising(): String` - Returns service name
+   - `stopHostAdvertising()` - Stop advertising
+   - `onPeerConnected(peerId, peerName)` - Native BLE callback
+   - `onPeerDisconnected(peerId)` - Native BLE callback
+   - `onDataReceived(fromPeerId, data)` - Native BLE callback
+   - `completeLine(lineId, result)` - Complete turn with pronunciation
+   - `skipLine(lineId)` - Skip turn (no microphone)
+   - `assignRole(playerId, roleId)` - Assign role in lobby
+   - `setPlayerReady(playerId, isReady)` - Toggle ready state
+   - `startMultiplayerGame()` - Start when all ready
+   - `outgoingPackets: Flow<OutgoingPacket>` - For native BLE transmission
+
+#### Test Files Created (51 new tests)
+1. `PronunciationModelsTest.kt` - 5 tests
+2. `LobbyModelsTest.kt` - 6 tests
+3. `GamificationModelsTest.kt` - 7 tests
+4. `OutgoingPacketTest.kt` - 5 tests
+5. `MultiplayerPacketSerializationTest.kt` - 9 tests
+6. `DialogStoreMultiplayerTest.kt` - 10 tests
+7. `BrainSDKMultiplayerTest.kt` - 9 tests
+
+#### Documentation Created
+1. **`docs/ios/native-ble-implementation.md`** (~400 lines)
+   - SDK ↔ Native BLE contract
+   - Complete `BLEHostManager` with `CBPeripheralManager`
+   - Kotlin ByteArray ↔ Swift Data conversion
+   - Packet fragmentation/reassembly
+   - Error handling and best practices
+
+2. **`docs/ios/gamification-guide.md`** (~500 lines)
+   - All gamification data models
+   - XP calculation formula with examples
+   - Speech recognition integration
+   - Pronunciation evaluation logic
+   - Complete SwiftUI views for game UI
+   - Achievement system
+
+#### Build Fixes
+- Renamed `Achievement` → `UnlockedAchievement` (avoid duplicate with UserProgress.kt)
+- Renamed `XPBreakdown` → `LineXPBreakdown` (avoid duplicate with UserProgress.kt)
+- Added `kotlin.apple.xcodeCompatibility.nowarn=true` to gradle.properties
+
+### Key Design Decisions
+
+| Decision | Rationale |
+|----------|-----------|
+| SDK handles game logic, native app handles BLE transport | Kable doesn't support peripheral mode; CoreBluetooth needed for hosting |
+| `outgoingPackets: Flow` for native consumption | Native app subscribes and transmits via BLE |
+| Pronunciation tracking in SDK, recognition in native | Speech APIs are platform-specific |
+| Turn-based with PRIVATE→COMMITTED visibility | Other players see "reading..." until done |
+| Separate `LineXPBreakdown` from session `XPBreakdown` | Different XP models for per-line vs per-session |
+
+### Files Modified Summary
+- 4 new model files in `domain/models/`
+- 4 enhanced model files
+- 1 enhanced store file
+- 1 enhanced SDK file
+- 7 new test files
+- 2 new documentation files
+- 1 gradle.properties update
+
+### Test Count
+- Previous: ~100 tests
+- Added: ~51 tests
+- Total: ~151 tests
+
+---
+
+## Session: February 7, 2025 (Continued) - Packet Serialization & Game Logic
+
+### Goal
+Complete the SDK-side BLE multiplayer implementation with packet serialization, XP calculation, turn advancement, and leaderboard updates.
+
+### Completed
+
+#### New Files Created
+
+1. **`PacketSerializer.kt`** - Packet ↔ ByteArray conversion
+   - `encode(packet): ByteArray` - JSON serialize for BLE transmission
+   - `decode(data): Packet?` - Deserialize with null safety for corrupt data
+   - `decodeOrThrow(data): Packet` - Throwing variant for explicit error handling
+
+2. **`PacketSerializerTest.kt`** - 7 serialization tests
+   - Round-trip tests for various packet types
+   - Invalid/empty data handling tests
+
+3. **`DialogStoreTurnAndXPTest.kt`** - 5 XP and turn logic tests
+   - XP calculation verification
+   - Streak tracking (increment on 90%+ accuracy, reset otherwise)
+   - Best streak preservation
+   - Leaderboard updates after line completion
+
+#### Enhanced Files
+
+1. **`DialogStore.kt`** - Major enhancements:
+   - **`Intent.DataReceived`**: Now deserializes ByteArray → Packet using PacketSerializer
+   - **`Intent.CompleteLine`**: Now includes:
+     - XP calculation via `calculateLineXP()`
+     - Stats update (lines, errors, perfect lines, streaks)
+     - Leaderboard recalculation via `calculateLeaderboard()`
+     - Turn advancement via `advanceTurn()`
+     - Outgoing packet emission in multiplayer mode
+   - **New private helper functions**:
+     - `isMultiplayerMode()` - Check HOST/CLIENT mode
+     - `emitPacketToPeers()` - Broadcast packets via `_outgoingPackets` Flow
+     - `calculateLineXP()` - XP formula: base + accuracy + speed + fluency bonuses × streak multiplier
+     - `calculateLeaderboard()` - Sort players by XP, assign ranks
+     - `advanceTurn()` - Round-robin turn advancement
+
+2. **`BrainSDK.kt`** - Cleanup:
+   - Removed unused `_outgoingPackets` MutableSharedFlow
+   - `outgoingPackets` now directly exposes `dialogStore.outgoingPackets`
+   - Removed unused imports
+
+### XP Calculation Formula
+
+```kotlin
+baseXP = 10
+accuracyBonus = accuracy × 10 (0-10 points)
+speedBonus = 5 if duration ≤ 3 seconds
+fluencyBonus = 10 if accuracy ≥ 95% AND no errors
+streakMultiplier = 1.0 + (streak × 0.1), capped at 2.0
+
+totalXP = (baseXP + accuracyBonus + speedBonus + fluencyBonus) × streakMultiplier
+```
+
+**Example**: Perfect line (100% accuracy, 2s, 5-streak) = (10 + 10 + 5 + 10) × 1.5 = 52 XP
+
+### Streak Logic
+
+- **Increment**: accuracy ≥ 90%
+- **Reset**: accuracy < 90%
+- **Best streak**: Always preserved (max of current and historical best)
+
+### Multiplayer Packet Flow (After Line Completion)
+
+1. SDK calculates results locally
+2. Emits `LINE_COMPLETED` packet with pronunciation result
+3. Emits `TURN_ADVANCED` packet with next player ID
+4. Emits `LEADERBOARD_UPDATE` packet with updated rankings
+5. Native layer receives via `outgoingPackets` Flow → broadcasts via BLE
+
+### Files Modified Summary
+- 2 new source files
+- 2 enhanced source files
+- 2 new test files
+- Session history update
+
+### Test Count
+- Previous: ~151 tests
+- Added: ~12 tests (7 serialization + 5 XP/turn)
+- Total: ~163 tests

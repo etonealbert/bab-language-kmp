@@ -2,15 +2,19 @@
 
 **Headless KMP SDK for collaborative language learning games.**
 
-A Kotlin Multiplatform library that provides all business logic for a role-playing language learning game where 1-4 players connect via Bluetooth (offline) or WebSocket (online) to act out AI-generated dialog scenarios.
+A Kotlin Multiplatform library providing business logic for a role-playing language learning game where 1-4 players connect via Bluetooth (offline) or WebSocket (online) to act out AI-generated dialog scenarios.
 
 ## Features
 
-- **Solo Mode**: Practice with AI partner using on-device or cloud LLM
-- **Multiplayer Mode**: Host/Client architecture via Bluetooth Low Energy
-- **Headless Architecture**: Pure logic, no UI - bring your own SwiftUI/Compose
-- **iOS 26 Foundation Models**: Native on-device AI integration (optional)
-- **Offline-First**: Works without internet using BLE mesh networking
+| Feature | Description |
+|---------|-------------|
+| **Solo Mode** | Practice with AI partner using on-device or cloud LLM |
+| **Multiplayer Mode** | Host/Client architecture via Bluetooth Low Energy |
+| **Language Learning** | SRS vocabulary, CEFR levels, pronunciation tracking |
+| **Gamification** | XP, streaks, leaderboards, achievements |
+| **Headless** | Pure logic - bring your own SwiftUI/Compose UI |
+| **iOS 26 LLM** | Native on-device AI via Foundation Models |
+| **Offline-First** | Works without internet using BLE |
 
 ## Platforms
 
@@ -25,39 +29,33 @@ A Kotlin Multiplatform library that provides all business logic for a role-playi
 
 ### iOS (SwiftUI)
 
-The SDK uses [SKIE](https://skie.touchlab.co/) for native Swift interoperability. StateFlows become AsyncSequences, suspend functions become async.
-
 ```swift
-import SwiftUI
 import BabLanguageSDK
 
-struct ContentView: View {
+struct GameView: View {
     let sdk = BrainSDK()
-    @State private var sessionState: SessionState?
+    @State private var state: SessionState?
     
     var body: some View {
         VStack {
-            Text("Mode: \(sessionState?.mode.description ?? "None")")
-            
-            Button("Start Solo Game") {
-                sdk.startSoloGame(scenarioId: "coffee-shop", userRoleId: "customer")
+            if let leaderboard = state?.sessionLeaderboard {
+                ForEach(leaderboard.rankings, id: \.playerId) { ranking in
+                    Text("\(ranking.rank). \(ranking.displayName): \(ranking.score) XP")
+                }
             }
             
-            Button("Generate Dialog") {
-                sdk.generate()
+            Button("Start Solo") {
+                sdk.startSoloGame(scenarioId: "coffee-shop", userRoleId: "customer")
             }
         }
         .task {
-            // Reactive observation with SKIE
-            for await state in sdk.state {
-                self.sessionState = state
-            }
+            for await s in sdk.state { state = s }
         }
     }
 }
 ```
 
-### Android (Jetpack Compose)
+### Android (Compose)
 
 ```kotlin
 @Composable
@@ -66,17 +64,12 @@ fun GameScreen() {
     val state by sdk.state.collectAsState()
     
     Column {
-        Text("Mode: ${state.mode}")
-        Text("Dialog: ${state.dialogHistory.size} lines")
-        
-        Button(onClick = { 
-            sdk.startSoloGame("coffee-shop", "customer") 
-        }) {
-            Text("Start Solo Game")
+        state.sessionLeaderboard?.rankings?.forEach { ranking ->
+            Text("${ranking.rank}. ${ranking.displayName}: ${ranking.score} XP")
         }
         
-        Button(onClick = { sdk.generate() }) {
-            Text("Generate Dialog")
+        Button(onClick = { sdk.startSoloGame("coffee-shop", "customer") }) {
+            Text("Start Solo")
         }
     }
 }
@@ -84,122 +77,122 @@ fun GameScreen() {
 
 ---
 
-## API Reference
+## Core API
 
 ### BrainSDK
 
-The main entry point for the SDK.
-
 ```kotlin
 class BrainSDK(
-    aiProvider: AIProvider? = null,  // Custom AI provider (optional)
+    aiProvider: AIProvider? = null,
     coroutineContext: CoroutineContext = Dispatchers.Default
 )
 ```
 
-#### Properties
+#### State Flows
 
 | Property | Type | Description |
 |----------|------|-------------|
-| `state` | `StateFlow<SessionState>` | Observable game state |
-| `aiCapabilities` | `AICapabilities` | Device AI capability info |
+| `state` | `StateFlow<SessionState>` | Game state (dialog, players, leaderboard) |
+| `userProfile` | `StateFlow<UserProfile?>` | Learner profile with CEFR level |
+| `vocabularyStats` | `StateFlow<VocabularyStats>` | SRS vocabulary statistics |
+| `progress` | `StateFlow<UserProgress?>` | XP, streaks, achievements |
+| `outgoingPackets` | `Flow<OutgoingPacket>` | Packets for native BLE to transmit |
 
-#### Methods
+#### Game Lifecycle
 
 | Method | Description |
 |--------|-------------|
-| `startSoloGame(scenarioId, userRoleId)` | Start solo game with AI partner |
-| `hostGame(scenarioId, userRoleId)` | Host multiplayer game (iOS only for offline) |
-| `joinGame(hostDeviceId, userRoleId)` | Join hosted game as client |
-| `scanForHosts(): Flow<DiscoveredDevice>` | Scan for nearby hosts via BLE |
+| `startSoloGame(scenarioId, roleId)` | Start solo with AI partner |
+| `hostGame(scenarioId, roleId)` | Host multiplayer (starts BLE advertising) |
+| `joinGame(hostDeviceId, roleId)` | Join as client |
 | `generate()` | Generate next AI dialog line |
-| `leaveGame()` | Leave current game session |
-| `getAvailableScenarios(): List<Scenario>` | Get available game scenarios |
+| `leaveGame()` | Leave session |
+
+#### Multiplayer (BLE Callbacks)
+
+| Method | Description |
+|--------|-------------|
+| `startHostAdvertising(): String` | Start BLE peripheral, returns service name |
+| `stopHostAdvertising()` | Stop advertising |
+| `onPeerConnected(peerId, name)` | Native BLE calls when peer connects |
+| `onPeerDisconnected(peerId)` | Native BLE calls when peer disconnects |
+| `onDataReceived(peerId, data)` | Native BLE calls with received bytes |
+
+#### Turn Management
+
+| Method | Description |
+|--------|-------------|
+| `completeLine(lineId, result)` | Complete turn with pronunciation result |
+| `skipLine(lineId)` | Skip turn (no microphone) |
+| `assignRole(playerId, roleId)` | Assign role in lobby |
+| `setPlayerReady(playerId, ready)` | Toggle ready state |
+| `startMultiplayerGame()` | Start when all ready |
+
+#### Vocabulary & Progress
+
+| Method | Description |
+|--------|-------------|
+| `getVocabularyForReview(limit)` | Get SRS due words |
+| `recordVocabularyReview(entryId, quality)` | Record review result |
+| `addToVocabulary(entry)` | Add new word |
+| `getProgress()` | Get XP, streaks, level |
+
+---
+
+## Key Models
 
 ### SessionState
 
-The complete game state, updated via `StateFlow`.
-
 ```kotlin
 data class SessionState(
-    val mode: SessionMode,           // SOLO, HOST, CLIENT
-    val connectionStatus: ConnectionStatus,
-    val scenario: Scenario?,
-    val roles: Map<String, Role>,
-    val dialogHistory: List<DialogLine>,
-    val currentPhase: GamePhase,     // LOBBY, WAITING, ACTIVE, VOTING, FINISHED
-    val vectorClock: VectorClock,
+    val mode: SessionMode,                    // SOLO, HOST, CLIENT
+    val dialogHistory: List<DialogLine>,      // All dialog lines
+    val committedHistory: List<DialogLine>,   // Theater view (completed lines)
+    val lobbyPlayers: List<LobbyPlayer>,      // Players in lobby
+    val currentTurnPlayerId: String?,         // Whose turn
+    val playerStats: Map<String, PlayerStats>,// Per-player XP, streaks
+    val sessionLeaderboard: SessionLeaderboard?,
     // ...
 )
 ```
 
-### Game Modes
+### DialogLine
 
-| Mode | Description |
-|------|-------------|
-| `SOLO` | Single player with AI partner |
-| `HOST` | Multiplayer host (manages game state) |
-| `CLIENT` | Multiplayer client (receives state from host) |
-
----
-
-## Installation
-
-### iOS (Swift Package Manager)
-
-1. In Xcode: **File → Add Package Dependencies**
-2. Enter: `https://github.com/etonealbert/bab-language-kmp`
-3. Select branch: `main`
-
-```swift
-import BabLanguageSDK
-
-let sdk = BrainSDK()
-```
-
-### Android (Gradle)
-
-**settings.gradle.kts:**
 ```kotlin
-dependencyResolutionManagement {
-    repositories {
-        maven {
-            url = uri("https://maven.pkg.github.com/etonealbert/bab-language-kmp")
-            credentials {
-                username = "YOUR_GITHUB_USERNAME"
-                password = "YOUR_GITHUB_PAT"
-            }
-        }
-    }
-}
+data class DialogLine(
+    val id: String,
+    val speakerId: String,
+    val roleName: String,
+    val textNative: String,        // Target language
+    val textTranslated: String,    // Native language
+    val visibility: LineVisibility,// PRIVATE or COMMITTED
+    val pronunciationResult: PronunciationResult?
+)
 ```
 
-**build.gradle.kts:**
+### PronunciationResult
+
 ```kotlin
-dependencies {
-    implementation("com.bablabs:brain-sdk:1.0.0")
-}
+data class PronunciationResult(
+    val accuracy: Float,           // 0.0 to 1.0
+    val errorCount: Int,
+    val wordErrors: List<WordError>,
+    val duration: Long,            // Milliseconds
+    val skipped: Boolean
+)
 ```
 
----
+### PlayerStats
 
-## iOS 26 Foundation Model Integration
-
-For on-device AI on iOS 26+, see the integration guide:
-
-📄 **[docs/ios-foundation-model-integration.md](docs/ios-foundation-model-integration.md)**
-
-This enables:
-- Zero-latency inference
-- Complete privacy (no cloud)
-- Works offline
-
-```swift
-// Check if native LLM is available
-let caps = sdk.aiCapabilities
-if caps.hasNativeLLM {
-    print("Using on-device AI!")
-}
+```kotlin
+data class PlayerStats(
+    val playerId: String,
+    val linesCompleted: Int,
+    val xpEarned: Int,
+    val currentStreak: Int,
+    val perfectLines: Int,
+    val averageAccuracy: Float
+)
 ```
 
 ---
@@ -212,83 +205,96 @@ if caps.hasNativeLLM {
 │              SwiftUI / Jetpack Compose                   │
 ├─────────────────────────────────────────────────────────┤
 │                      BrainSDK                            │
-│         Entry point, exposes StateFlow<SessionState>     │
+│    state, userProfile, vocabularyStats, outgoingPackets │
 ├─────────────────────────────────────────────────────────┤
-│                    DialogStore (MVI)                     │
-│         Intent → Execute → Packet → Reduce → State       │
+│                 DialogStore (MVI)                        │
+│   Intent → Execute → Packet → NetworkSession → Reduce   │
 ├─────────────────────────────────────────────────────────┤
-│              NetworkSession (Interface)                  │
-│    LoopbackNetworkSession │ BleHostSession │ BleClient   │
-├─────────────────────────────────────────────────────────┤
-│                AIProvider (Interface)                    │
-│      MockAIProvider │ NativeLLMProvider │ CloudProvider  │
+│           NetworkSession          │    AIProvider        │
+│  Loopback │ BLE Host │ BLE Client │  Mock │ Native LLM  │
 └─────────────────────────────────────────────────────────┘
 ```
 
-### Key Design Decisions
+### Data Flow
 
-1. **Unified Loopback Pattern**: ALL state mutations flow through `NetworkSession.incomingPackets → Reducer`, even in Solo mode
-2. **Vector Clock Sync**: CRDT-style conflict resolution for multiplayer
-3. **Headless**: No UI code in SDK - pure business logic only
+```
+Solo Mode:
+  Intent → Packet → LoopbackSession (echo) → Reducer → State
+
+Multiplayer (Host):
+  Intent → Packet → outgoingPackets Flow → Native BLE → Broadcast
+  Native BLE receives → onDataReceived() → Reducer → State
+
+Multiplayer (Client):
+  Native BLE receives → onDataReceived() → Reducer → State
+  Intent → Packet → outgoingPackets Flow → Native BLE → Send to Host
+```
+
+---
+
+## Build Commands
+
+```bash
+# Run all tests (~163 tests)
+./gradlew :composeApp:allTests
+
+# Build iOS XCFramework
+./gradlew :composeApp:assembleBabLanguageSDKXCFramework
+
+# Build Android AAR
+./gradlew :composeApp:assembleRelease
+
+# Compile check
+./gradlew :composeApp:compileKotlinMetadata
+```
 
 ---
 
 ## Project Structure
 
 ```
-composeApp/src/
-├── commonMain/kotlin/com/bablabs/bringabrainlanguage/
-│   ├── BrainSDK.kt                    # Main entry point
-│   ├── domain/
-│   │   ├── interfaces/
-│   │   │   ├── AIProvider.kt          # AI abstraction
-│   │   │   └── NetworkSession.kt      # Network abstraction
-│   │   ├── models/
-│   │   │   ├── DialogLine.kt
-│   │   │   ├── Packet.kt              # Network packet types
-│   │   │   ├── SessionState.kt        # Game state
-│   │   │   └── VectorClock.kt         # CRDT sync
-│   │   └── stores/
-│   │       └── DialogStore.kt         # MVI state machine
-│   └── infrastructure/
-│       ├── ai/
-│       │   ├── MockAIProvider.kt      # Development/testing
-│       │   ├── NativeLLMProvider.kt   # iOS 26 Foundation Models
-│       │   └── DeviceCapabilities.kt  # Capability detection
-│       └── network/
-│           ├── LoopbackNetworkSession.kt  # Solo mode
-│           └── ble/
-│               ├── BleHostSession.kt      # Multiplayer host
-│               ├── BleClientSession.kt    # Multiplayer client
-│               └── PacketFragmenter.kt    # BLE MTU handling
-├── androidMain/                       # Android-specific implementations
-├── iosMain/                           # iOS-specific implementations
-└── commonTest/                        # Unit & integration tests
+composeApp/src/commonMain/kotlin/com/bablabs/bringabrainlanguage/
+├── BrainSDK.kt                      # Entry point
+├── domain/
+│   ├── interfaces/
+│   │   ├── AIProvider.kt            # AI abstraction
+│   │   ├── NetworkSession.kt        # Network abstraction
+│   │   └── *Repository.kt           # Persistence interfaces
+│   ├── models/
+│   │   ├── DialogLine.kt            # Dialog with native/translated text
+│   │   ├── SessionState.kt          # Complete game state
+│   │   ├── PronunciationModels.kt   # Speech recognition results
+│   │   ├── GamificationModels.kt    # XP, leaderboards, achievements
+│   │   ├── LobbyModels.kt           # Multiplayer lobby
+│   │   ├── Packet.kt                # Network packet types
+│   │   ├── PacketSerializer.kt      # Packet ↔ ByteArray
+│   │   └── UserProgress.kt          # Streaks, levels, XP
+│   ├── stores/
+│   │   └── DialogStore.kt           # MVI state machine
+│   └── services/
+│       └── SRSScheduler.kt          # Spaced repetition algorithm
+└── infrastructure/
+    ├── ai/
+    │   ├── MockAIProvider.kt        # Testing
+    │   └── DeviceCapabilities.kt    # LLM detection
+    ├── network/
+    │   ├── LoopbackNetworkSession.kt
+    │   └── ble/                     # BLE utilities
+    └── repositories/                # In-memory defaults
 ```
 
 ---
 
-## Development
+## Documentation
 
-### Prerequisites
-
-- **Android Studio** Koala or newer
-- **JDK 17** (not JDK 25)
-- **Xcode 15+** (for iOS)
-
-### Build Commands
-
-| Task | Command |
-|------|---------|
-| Run all tests | `./gradlew :composeApp:allTests` |
-| Build iOS XCFramework | `./gradlew :composeApp:assembleBabLanguageSDKXCFramework` |
-| Build Android AAR | `./gradlew :composeApp:assembleRelease` |
-
-### Test Coverage
-
-- 45+ unit tests
-- Integration tests for Solo and Multiplayer modes
-- All tests pass on Android (iOS tests require device)
+| Doc | Description |
+|-----|-------------|
+| `docs/ios/native-ble-implementation.md` | CoreBluetooth peripheral implementation |
+| `docs/ios/gamification-guide.md` | XP, achievements, SwiftUI views |
+| `docs/ios/integration-guide.md` | Full iOS integration guide |
+| `docs/ios/coredata-persistence-guide.md` | CoreData for vocabulary/progress |
+| `docs/android/room-persistence-guide.md` | Room database implementation |
+| `docs/ios-foundation-model-integration.md` | iOS 26 on-device LLM |
 
 ---
 
@@ -296,24 +302,22 @@ composeApp/src/
 
 | Phase | Status | Description |
 |-------|--------|-------------|
-| Phase 1: Walking Skeleton | ✅ Complete | Core MVI, models, mock AI |
-| Phase 2: Sync Engine (BLE) | ✅ Complete | Host/Client sessions, packet fragmentation |
-| Phase 3: iOS 26 LLM Docs | ✅ Complete | Integration guide for Foundation Models |
-| Phase 4: WebSocket Backend | 📋 Planned | Rust server, online multiplayer |
+| Phase 1: Core SDK | ✅ | MVI, models, mock AI |
+| Phase 2: BLE Multiplayer | ✅ | Host/Client, packet sync |
+| Phase 3: Language Learning | ✅ | SRS, CEFR, vocabulary |
+| Phase 4: Gamification | ✅ | XP, streaks, leaderboards |
+| Phase 5: WebSocket Backend | 📋 | Rust server, online play |
+
+---
+
+## Requirements
+
+- **JDK 17** (not 25)
+- **Android Studio** Koala+
+- **Xcode 15+** (iOS)
 
 ---
 
 ## License
 
 [Your License Here]
-
----
-
-## Contributing
-
-This is a headless SDK. **DO NOT** add:
-- `@Composable` functions
-- UI components
-- Platform-specific UI code
-
-All UI belongs in the consuming apps, not here.

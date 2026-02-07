@@ -22,10 +22,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlin.coroutines.CoroutineContext
@@ -77,8 +75,6 @@ class BrainSDK(
     
     private val bleScanner by lazy { createBleScanner() }
     
-    private val _outgoingPackets = MutableSharedFlow<OutgoingPacket>()
-    
     private val _userProfile = MutableStateFlow<UserProfile?>(null)
     private val _vocabularyStats = MutableStateFlow(VocabularyStats(0, 0, 0, 0, 0, 0))
     private val _dueReviews = MutableStateFlow<List<VocabularyEntry>>(emptyList())
@@ -93,7 +89,7 @@ class BrainSDK(
     val aiCapabilities: AICapabilities
         get() = DeviceCapabilities.check()
     
-    val outgoingPackets: Flow<OutgoingPacket> = _outgoingPackets.asSharedFlow()
+    val outgoingPackets: Flow<OutgoingPacket> = dialogStore.outgoingPackets
     
     init {
         scope.launch { loadInitialData() }

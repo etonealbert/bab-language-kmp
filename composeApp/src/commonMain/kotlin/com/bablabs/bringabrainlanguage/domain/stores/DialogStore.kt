@@ -7,11 +7,15 @@ import com.bablabs.bringabrainlanguage.domain.models.*
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlin.coroutines.CoroutineContext
+import kotlin.math.min
 
 class DialogStore(
     private val networkSession: NetworkSession,
@@ -22,6 +26,9 @@ class DialogStore(
     
     private val _state = MutableStateFlow(SessionState(localPeerId = networkSession.localPeerId))
     val state: StateFlow<SessionState> = _state.asStateFlow()
+    
+    private val _outgoingPackets = MutableSharedFlow<OutgoingPacket>()
+    val outgoingPackets: Flow<OutgoingPacket> = _outgoingPackets.asSharedFlow()
     
     init {
         scope.launch {
@@ -224,12 +231,14 @@ class DialogStore(
             }
             
             is Intent.DataReceived -> {
-                // Deserialize and process incoming packet from BLE layer
-                // This will be implemented when actual BLE transport is added
+                val packet = PacketSerializer.decode(intent.data) ?: return
+                reduce(packet)
             }
             
             is Intent.CompleteLine -> {
                 val currentState = _state.value
+                val completedLine = currentState.dialogHistory.find { it.id == intent.lineId } ?: return
+                
                 val updatedHistory = currentState.dialogHistory.map { line ->
                     if (line.id == intent.lineId) {
                         line.copy(
@@ -239,22 +248,50 @@ class DialogStore(
                     } else line
                 }
                 
-                val currentStats = currentState.playerStats[currentState.currentTurnPlayerId] 
-                    ?: PlayerStats(playerId = currentState.currentTurnPlayerId ?: "")
+                val playerId = completedLine.assignedToPlayerId ?: currentState.currentTurnPlayerId ?: networkSession.localPeerId
+                val currentStats = currentState.playerStats[playerId] ?: PlayerStats(playerId = playerId)
+                
+                val xpBreakdown = calculateLineXP(intent.result, currentStats.currentStreak, isMultiplayerMode())
                 val updatedStats = currentStats.copy(
                     linesCompleted = currentStats.linesCompleted + 1,
+                    xpEarned = currentStats.xpEarned + xpBreakdown.total,
                     totalErrors = currentStats.totalErrors + intent.result.errorCount,
                     perfectLines = if (intent.result.accuracy >= 1.0f) currentStats.perfectLines + 1 else currentStats.perfectLines,
-                    currentStreak = if (intent.result.accuracy >= 1.0f) currentStats.currentStreak + 1 else 0
+                    currentStreak = if (intent.result.accuracy >= 0.9f) currentStats.currentStreak + 1 else 0,
+                    averageAccuracy = calculateAverageAccuracy(currentStats, intent.result.accuracy)
                 )
+                
+                val allPlayerStats = currentState.playerStats + (playerId to updatedStats)
+                val updatedLeaderboard = calculateLeaderboard(allPlayerStats)
+                
+                val completedLineFromHistory = updatedHistory.first { it.id == intent.lineId }
+                
+                val (nextPlayerId, nextLine) = advanceTurn(currentState, playerId)
                 
                 _state.value = currentState.copy(
                     dialogHistory = updatedHistory,
-                    committedHistory = currentState.committedHistory + updatedHistory.last { it.id == intent.lineId },
-                    pendingLine = null,
-                    playerStats = currentState.playerStats + (updatedStats.playerId to updatedStats),
+                    committedHistory = currentState.committedHistory + completedLineFromHistory,
+                    pendingLine = nextLine,
+                    currentTurnPlayerId = nextPlayerId,
+                    playerStats = allPlayerStats,
+                    sessionLeaderboard = updatedLeaderboard,
                     vectorClock = currentState.vectorClock.increment(networkSession.localPeerId)
                 )
+                
+                if (isMultiplayerMode()) {
+                    emitPacketToPeers(
+                        PacketType.LINE_COMPLETED,
+                        PacketPayload.LineCompleted(intent.lineId, intent.result)
+                    )
+                    emitPacketToPeers(
+                        PacketType.TURN_ADVANCED,
+                        PacketPayload.TurnAdvanced(nextPlayerId, nextLine)
+                    )
+                    emitPacketToPeers(
+                        PacketType.LEADERBOARD_UPDATE,
+                        PacketPayload.LeaderboardUpdate(updatedLeaderboard)
+                    )
+                }
             }
             
             is Intent.SkipLine -> {
@@ -520,5 +557,80 @@ class DialogStore(
         ) : Intent()
         
         data object StartMultiplayerGame : Intent()
+    }
+    
+    private fun isMultiplayerMode(): Boolean {
+        val mode = _state.value.mode
+        return mode == SessionMode.HOST || mode == SessionMode.CLIENT
+    }
+    
+    private fun emitPacketToPeers(type: PacketType, payload: PacketPayload) {
+        val packet = Packet(
+            type = type,
+            senderId = networkSession.localPeerId,
+            vectorClock = _state.value.vectorClock,
+            payload = payload
+        )
+        val data = PacketSerializer.encode(packet)
+        scope.launch {
+            _outgoingPackets.emit(OutgoingPacket.broadcast(data))
+        }
+    }
+    
+    private fun calculateLineXP(result: PronunciationResult, currentStreak: Int, isMultiplayer: Boolean): LineXPBreakdown {
+        val baseXP = 10
+        val accuracyBonus = (result.accuracy * 10).toInt()
+        val streakBonus = min(currentStreak * 2, 20)
+        val multiplayerBonus = if (isMultiplayer) 5 else 0
+        val firstTimeScenarioBonus = 0
+        
+        return LineXPBreakdown(
+            baseXP = baseXP,
+            accuracyBonus = accuracyBonus,
+            streakBonus = streakBonus,
+            multiplayerBonus = multiplayerBonus,
+            firstTimeScenarioBonus = firstTimeScenarioBonus
+        )
+    }
+    
+    private fun calculateLeaderboard(playerStats: Map<String, PlayerStats>): SessionLeaderboard {
+        val now = kotlinx.datetime.Clock.System.now().toEpochMilliseconds()
+        val rankings = playerStats.values
+            .sortedByDescending { it.xpEarned }
+            .mapIndexed { index, stats ->
+                PlayerRanking(
+                    rank = index + 1,
+                    playerId = stats.playerId,
+                    displayName = stats.playerId,
+                    score = stats.xpEarned,
+                    highlight = when {
+                        stats.currentStreak >= 5 -> "On fire! ${stats.currentStreak} streak"
+                        stats.perfectLines > 0 -> "${stats.perfectLines} perfect"
+                        else -> null
+                    }
+                )
+            }
+        return SessionLeaderboard(rankings = rankings, updatedAt = now)
+    }
+    
+    private fun calculateAverageAccuracy(stats: PlayerStats, newAccuracy: Float): Float {
+        val totalLines = stats.linesCompleted + 1
+        return ((stats.averageAccuracy * stats.linesCompleted) + newAccuracy) / totalLines
+    }
+    
+    private fun advanceTurn(
+        currentState: SessionState,
+        completedByPlayerId: String
+    ): Pair<String, DialogLine?> {
+        val players = currentState.lobbyPlayers
+        if (players.isEmpty()) {
+            return Pair(completedByPlayerId, null)
+        }
+        
+        val currentIndex = players.indexOfFirst { it.peerId == completedByPlayerId }
+        val nextIndex = if (currentIndex >= 0) (currentIndex + 1) % players.size else 0
+        val nextPlayerId = players[nextIndex].peerId
+        
+        return Pair(nextPlayerId, null)
     }
 }
