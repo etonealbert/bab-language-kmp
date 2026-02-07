@@ -97,8 +97,8 @@ class GamificationModelsTest {
     }
     
     @Test
-    fun achievementSerializesCorrectly() {
-        val achievement = Achievement(
+    fun unlockedAchievementSerializesCorrectly() {
+        val achievement = UnlockedAchievement(
             id = "first_multiplayer",
             name = "First Words Together",
             description = "Complete first multiplayer session",
@@ -107,20 +107,19 @@ class GamificationModelsTest {
         )
         
         val serialized = json.encodeToString(achievement)
-        val deserialized = json.decodeFromString<Achievement>(serialized)
+        val deserialized = json.decodeFromString<UnlockedAchievement>(serialized)
         
         assertEquals(achievement, deserialized)
     }
     
     @Test
-    fun xpBreakdownTotalIsCorrect() {
-        val breakdown = XPBreakdown(
+    fun lineXpBreakdownTotalIsCorrect() {
+        val breakdown = LineXPBreakdown(
             baseXP = 10,
             accuracyBonus = 15,
             streakBonus = 5,
             multiplayerBonus = 5,
-            firstTimeScenarioBonus = 25,
-            total = 60
+            firstTimeScenarioBonus = 25
         )
         
         val expectedTotal = breakdown.baseXP + 

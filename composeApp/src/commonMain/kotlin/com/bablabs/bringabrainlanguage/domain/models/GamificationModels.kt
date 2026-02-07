@@ -35,26 +35,28 @@ data class SessionSummary(
     val totalLines: Int,
     val playerRankings: List<PlayerRanking>,
     val xpEarned: Map<String, Int>,
-    val achievementsUnlocked: List<Achievement>,
+    val achievementsUnlocked: List<UnlockedAchievement>,
     val vocabularyLearned: List<VocabularyEntry>,
     val overallAccuracy: Float
 )
 
 @Serializable
-data class Achievement(
+data class UnlockedAchievement(
     val id: String,
     val name: String,
     val description: String,
     val iconName: String? = null,
-    val unlockedAt: Long? = null
+    val unlockedAt: Long
 )
 
 @Serializable
-data class XPBreakdown(
+data class LineXPBreakdown(
     val baseXP: Int,
     val accuracyBonus: Int,
     val streakBonus: Int,
     val multiplayerBonus: Int,
-    val firstTimeScenarioBonus: Int,
+    val firstTimeScenarioBonus: Int
+) {
     val total: Int
-)
+        get() = baseXP + accuracyBonus + streakBonus + multiplayerBonus + firstTimeScenarioBonus
+}
