@@ -9,5 +9,8 @@ data class DialogLine(
     val roleName: String,
     val textNative: String,
     val textTranslated: String,
-    val timestamp: Long
+    val timestamp: Long,
+    val assignedToPlayerId: String = "",
+    val visibility: LineVisibility = LineVisibility.COMMITTED,
+    val pronunciationResult: PronunciationResult? = null
 )

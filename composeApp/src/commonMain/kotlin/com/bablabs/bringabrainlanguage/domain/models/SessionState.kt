@@ -23,7 +23,19 @@ data class SessionState(
     val playerContexts: Map<String, PlayerContext> = emptyMap(),
     val activePlotTwist: PlotTwist? = null,
     val recentFeedback: List<Feedback> = emptyList(),
-    val sessionStats: SessionStats? = null
+    val sessionStats: SessionStats? = null,
+    
+    val lobbyPlayers: List<LobbyPlayer> = emptyList(),
+    val isAdvertising: Boolean = false,
+    val connectedPeers: List<ConnectedPeer> = emptyList(),
+    
+    val currentTurnPlayerId: String? = null,
+    val pendingLine: DialogLine? = null,
+    val committedHistory: List<DialogLine> = emptyList(),
+    
+    val playerStats: Map<String, PlayerStats> = emptyMap(),
+    val sessionLeaderboard: SessionLeaderboard? = null,
+    val sessionSummary: SessionSummary? = null
 )
 
 @Serializable

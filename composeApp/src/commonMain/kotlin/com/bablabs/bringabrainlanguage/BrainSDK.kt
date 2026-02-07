@@ -22,8 +22,10 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlin.coroutines.CoroutineContext
@@ -75,6 +77,8 @@ class BrainSDK(
     
     private val bleScanner by lazy { createBleScanner() }
     
+    private val _outgoingPackets = MutableSharedFlow<OutgoingPacket>()
+    
     private val _userProfile = MutableStateFlow<UserProfile?>(null)
     private val _vocabularyStats = MutableStateFlow(VocabularyStats(0, 0, 0, 0, 0, 0))
     private val _dueReviews = MutableStateFlow<List<VocabularyEntry>>(emptyList())
@@ -88,6 +92,8 @@ class BrainSDK(
     
     val aiCapabilities: AICapabilities
         get() = DeviceCapabilities.check()
+    
+    val outgoingPackets: Flow<OutgoingPacket> = _outgoingPackets.asSharedFlow()
     
     init {
         scope.launch { loadInitialData() }
@@ -237,6 +243,49 @@ class BrainSDK(
     suspend fun endSession() {
         dialogStore.accept(DialogStore.Intent.EndSession)
         dialogHistoryRepository.saveSession(state.value, state.value.sessionStats)
+    }
+    
+    // ==================== BLE MULTIPLAYER ====================
+    
+    fun startHostAdvertising(): String {
+        dialogStore.accept(DialogStore.Intent.StartAdvertising)
+        return "bab-game-${networkSession.localPeerId}"
+    }
+    
+    fun stopHostAdvertising() {
+        dialogStore.accept(DialogStore.Intent.StopAdvertising)
+    }
+    
+    fun onPeerConnected(peerId: String, peerName: String) {
+        dialogStore.accept(DialogStore.Intent.PeerConnected(peerId, peerName))
+    }
+    
+    fun onPeerDisconnected(peerId: String) {
+        dialogStore.accept(DialogStore.Intent.PeerDisconnected(peerId))
+    }
+    
+    fun onDataReceived(fromPeerId: String, data: ByteArray) {
+        dialogStore.accept(DialogStore.Intent.DataReceived(fromPeerId, data))
+    }
+    
+    fun completeLine(lineId: String, result: PronunciationResult) {
+        dialogStore.accept(DialogStore.Intent.CompleteLine(lineId, result))
+    }
+    
+    fun skipLine(lineId: String) {
+        dialogStore.accept(DialogStore.Intent.SkipLine(lineId))
+    }
+    
+    fun assignRole(playerId: String, roleId: String) {
+        dialogStore.accept(DialogStore.Intent.AssignRole(playerId, roleId))
+    }
+    
+    fun setPlayerReady(playerId: String, isReady: Boolean) {
+        dialogStore.accept(DialogStore.Intent.SetPlayerReady(playerId, isReady))
+    }
+    
+    fun startMultiplayerGame() {
+        dialogStore.accept(DialogStore.Intent.StartMultiplayerGame)
     }
     
     fun getAvailableScenarios(): List<Scenario> {
