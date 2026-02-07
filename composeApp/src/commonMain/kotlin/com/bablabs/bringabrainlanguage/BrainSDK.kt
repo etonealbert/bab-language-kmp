@@ -4,6 +4,8 @@ import com.bablabs.bringabrainlanguage.domain.interfaces.AIProvider
 import com.bablabs.bringabrainlanguage.domain.interfaces.DialogHistoryRepository
 import com.bablabs.bringabrainlanguage.domain.interfaces.ProgressRepository
 import com.bablabs.bringabrainlanguage.domain.interfaces.SavedSession
+import com.bablabs.bringabrainlanguage.domain.interfaces.TranslationCacheRepository
+import com.bablabs.bringabrainlanguage.domain.interfaces.TranslationProvider
 import com.bablabs.bringabrainlanguage.domain.interfaces.UserProfileRepository
 import com.bablabs.bringabrainlanguage.domain.interfaces.VocabularyRepository
 import com.bablabs.bringabrainlanguage.domain.models.*
@@ -16,8 +18,10 @@ import com.bablabs.bringabrainlanguage.infrastructure.network.ble.DiscoveredDevi
 import com.bablabs.bringabrainlanguage.infrastructure.network.ble.createBleScanner
 import com.bablabs.bringabrainlanguage.infrastructure.repositories.InMemoryDialogHistoryRepository
 import com.bablabs.bringabrainlanguage.infrastructure.repositories.InMemoryProgressRepository
+import com.bablabs.bringabrainlanguage.infrastructure.repositories.InMemoryTranslationCacheRepository
 import com.bablabs.bringabrainlanguage.infrastructure.repositories.InMemoryUserProfileRepository
 import com.bablabs.bringabrainlanguage.infrastructure.repositories.InMemoryVocabularyRepository
+import com.bablabs.bringabrainlanguage.infrastructure.translation.MockTranslationProvider
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -35,7 +39,9 @@ class BrainSDK(
     private val userProfileRepository: UserProfileRepository = InMemoryUserProfileRepository(),
     private val vocabularyRepository: VocabularyRepository = InMemoryVocabularyRepository(),
     private val progressRepository: ProgressRepository = InMemoryProgressRepository(),
-    private val dialogHistoryRepository: DialogHistoryRepository = InMemoryDialogHistoryRepository()
+    private val dialogHistoryRepository: DialogHistoryRepository = InMemoryDialogHistoryRepository(),
+    private val translationProvider: TranslationProvider = MockTranslationProvider(),
+    private val translationCacheRepository: TranslationCacheRepository = InMemoryTranslationCacheRepository()
 ) {
     
     /**
@@ -55,7 +61,9 @@ class BrainSDK(
         userProfileRepository = InMemoryUserProfileRepository(),
         vocabularyRepository = InMemoryVocabularyRepository(),
         progressRepository = InMemoryProgressRepository(),
-        dialogHistoryRepository = InMemoryDialogHistoryRepository()
+        dialogHistoryRepository = InMemoryDialogHistoryRepository(),
+        translationProvider = MockTranslationProvider(),
+        translationCacheRepository = InMemoryTranslationCacheRepository()
     )
     
     private val scope = CoroutineScope(SupervisorJob() + coroutineContext)
@@ -79,12 +87,16 @@ class BrainSDK(
     private val _vocabularyStats = MutableStateFlow(VocabularyStats(0, 0, 0, 0, 0, 0))
     private val _dueReviews = MutableStateFlow<List<VocabularyEntry>>(emptyList())
     private val _progress = MutableStateFlow<UserProgress?>(null)
+    private val _vocabularyEntries = MutableStateFlow<List<VocabularyEntry>>(emptyList())
+    private val _translationCache = MutableStateFlow<Map<String, WordTranslation>>(emptyMap())
     
     val state: StateFlow<SessionState> = dialogStore.state
     val userProfile: StateFlow<UserProfile?> = _userProfile.asStateFlow()
     val vocabularyStats: StateFlow<VocabularyStats> = _vocabularyStats.asStateFlow()
     val dueReviews: StateFlow<List<VocabularyEntry>> = _dueReviews.asStateFlow()
     val progress: StateFlow<UserProgress?> = _progress.asStateFlow()
+    val vocabularyEntries: StateFlow<List<VocabularyEntry>> = _vocabularyEntries.asStateFlow()
+    val translationCache: StateFlow<Map<String, WordTranslation>> = _translationCache.asStateFlow()
     
     val aiCapabilities: AICapabilities
         get() = DeviceCapabilities.check()
@@ -106,6 +118,11 @@ class BrainSDK(
     private suspend fun refreshVocabularyStats(language: LanguageCode) {
         _vocabularyStats.value = vocabularyRepository.getStats(language)
         _dueReviews.value = vocabularyRepository.getDueForReview(language)
+        _vocabularyEntries.value = vocabularyRepository.getAll(language)
+    }
+    
+    private suspend fun refreshTranslationCache() {
+        _translationCache.value = translationCacheRepository.getAll()
     }
 
     // ==================== ONBOARDING ====================
@@ -133,6 +150,56 @@ class BrainSDK(
 
     // ==================== VOCABULARY ====================
     
+    suspend fun translateWord(
+        word: String,
+        sentenceContext: String,
+        sourceLanguage: LanguageCode? = null,
+        targetLanguage: LanguageCode? = null
+    ): WordTranslation {
+        val profile = _userProfile.value
+        val source = sourceLanguage ?: profile?.currentTargetLanguage ?: "es"
+        val target = targetLanguage ?: profile?.nativeLanguage ?: "en"
+        
+        val cached = translationCacheRepository.get(word, source, target)
+        if (cached != null) {
+            return cached
+        }
+        
+        val translation = translationProvider.translateWord(word, sentenceContext, source, target)
+        translationCacheRepository.put(translation)
+        refreshTranslationCache()
+        return translation
+    }
+    
+    suspend fun clearTranslationCache() {
+        translationCacheRepository.clear()
+        refreshTranslationCache()
+    }
+    
+    fun isInVocabulary(word: String, language: LanguageCode? = null): Boolean {
+        val lang = language ?: _userProfile.value?.currentTargetLanguage ?: return false
+        return _vocabularyEntries.value.any { 
+            it.word.equals(word, ignoreCase = true) && it.language == lang 
+        }
+    }
+    
+    fun getVocabularyEntry(word: String, language: LanguageCode? = null): VocabularyEntry? {
+        val lang = language ?: _userProfile.value?.currentTargetLanguage ?: return null
+        return _vocabularyEntries.value.find { 
+            it.word.equals(word, ignoreCase = true) && it.language == lang 
+        }
+    }
+    
+    suspend fun removeFromVocabulary(entryId: String) {
+        vocabularyRepository.delete(entryId)
+        _userProfile.value?.currentTargetLanguage?.let { refreshVocabularyStats(it) }
+    }
+    
+    suspend fun updateVocabularyNotes(entryId: String, notes: String) {
+        vocabularyRepository.updateNotes(entryId, notes)
+        _userProfile.value?.currentTargetLanguage?.let { refreshVocabularyStats(it) }
+    }
+    
     suspend fun getVocabularyForReview(limit: Int = 20): List<VocabularyEntry> {
         val language = _userProfile.value?.currentTargetLanguage ?: return emptyList()
         return vocabularyRepository.getDueForReview(language, limit)
@@ -148,6 +215,25 @@ class BrainSDK(
     suspend fun addToVocabulary(entry: VocabularyEntry) {
         vocabularyRepository.upsert(entry)
         _userProfile.value?.currentTargetLanguage?.let { refreshVocabularyStats(it) }
+    }
+    
+    suspend fun addToVocabulary(
+        word: String,
+        translation: String,
+        partOfSpeech: PartOfSpeech? = null,
+        sourceLanguage: LanguageCode? = null,
+        exampleSentence: String? = null,
+        scenarioId: String? = null
+    ): VocabularyEntry {
+        val lang = sourceLanguage ?: _userProfile.value?.currentTargetLanguage ?: "es"
+        val dialogId = scenarioId ?: state.value.scenario?.id
+        val entry = SRSScheduler.createNewEntry(word, translation, lang, dialogId).copy(
+            partOfSpeech = partOfSpeech,
+            exampleSentence = exampleSentence
+        )
+        vocabularyRepository.upsert(entry)
+        _userProfile.value?.currentTargetLanguage?.let { refreshVocabularyStats(it) }
+        return entry
     }
     
     suspend fun createVocabularyEntry(

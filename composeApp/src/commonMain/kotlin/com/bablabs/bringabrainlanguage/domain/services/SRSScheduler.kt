@@ -118,7 +118,8 @@ object SRSScheduler {
             correctReviews = 0,
             firstSeenInDialogId = dialogId,
             firstSeenAt = now,
-            lastReviewedAt = null
+            lastReviewedAt = null,
+            notes = null
         )
     }
     

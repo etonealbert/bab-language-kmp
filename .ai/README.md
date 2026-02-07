@@ -55,7 +55,7 @@ User Action → Intent → Executor → Packet → NetworkSession → Reducer �
 - **Phase 1**: Core SDK ✅
 - **Phase 2**: BLE Multiplayer ✅
 - **Phase 3**: iOS 26 LLM docs ✅
-- **Phase 4**: Language Learning Features ✅ (100 tests passing)
+- **Phase 4**: Language Learning Features ✅ (207 tests passing)
 - **Phase 5**: WebSocket backend 📋 (planned)
 
 ## Phase 4 Implementation Summary
@@ -66,6 +66,7 @@ Language learning features are now implemented:
 |---------|---------|
 | UserProfile | CEFR levels, interests, learning goals |
 | Vocabulary SRS | Spaced repetition with SM-2 algorithm |
+| Word Translation | Context-aware translation with caching |
 | Information Gaps | Secret objectives forcing communication |
 | Asymmetric Difficulty | Different prompts per player CEFR level |
 | Narrative Recasts | In-flow error correction by NPCs |
@@ -74,6 +75,7 @@ Language learning features are now implemented:
 | Progress/XP | Streaks, levels, collaborative stats |
 
 **Design doc**: `docs/plans/2026-02-05-language-learning-features-design.md`
+**Vocabulary Guide**: `docs/vocabulary-and-translation-guide.md`
 
 ## Deep Dive Docs
 

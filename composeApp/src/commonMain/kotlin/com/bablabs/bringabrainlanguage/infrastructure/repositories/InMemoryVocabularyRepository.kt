@@ -16,6 +16,9 @@ class InMemoryVocabularyRepository : VocabularyRepository {
     
     override suspend fun getById(id: String): VocabularyEntry? = entries[id]
     
+    override suspend fun getByWord(word: String, language: LanguageCode): VocabularyEntry? =
+        entries.values.find { it.word.equals(word, ignoreCase = true) && it.language == language }
+    
     override suspend fun getDueForReview(language: LanguageCode, limit: Int): List<VocabularyEntry> =
         SRSScheduler.getDueReviews(getAll(language), limit)
     
@@ -49,6 +52,12 @@ class InMemoryVocabularyRepository : VocabularyRepository {
     
     override suspend fun delete(id: String) {
         entries.remove(id)
+    }
+    
+    override suspend fun updateNotes(id: String, notes: String) {
+        entries[id]?.let { entry ->
+            entries[id] = entry.copy(notes = notes)
+        }
     }
     
     override suspend fun clear() {

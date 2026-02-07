@@ -19,7 +19,8 @@ data class VocabularyEntry(
     val correctReviews: Int,
     val firstSeenInDialogId: String?,
     val firstSeenAt: Long,
-    val lastReviewedAt: Long?
+    val lastReviewedAt: Long?,
+    val notes: String? = null
 )
 
 @Serializable
