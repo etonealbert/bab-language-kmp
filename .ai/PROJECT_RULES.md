@@ -221,39 +221,47 @@ All 8 BLE tasks completed:
 - [x] Integration guide: `docs/ios-foundation-model-integration.md`
 - [x] `BrainSDK` updated to support injectable AIProvider
 
-### Phase 4: Language Learning Features 📋 DESIGNED (Pending Implementation)
+### Phase 4: Language Learning Features ✅ COMPLETE
 
 Full design approved: `docs/plans/2026-02-05-language-learning-features-design.md`
 
-**4A: User Onboarding & Profile**
-- [ ] `UserProfile` model with CEFR levels, interests, goals
-- [ ] `UserProfileRepository` interface + in-memory impl
-- [ ] Onboarding flow in BrainSDK
+**4A: User Onboarding & Profile** ✅
+- [x] `UserProfile` model with CEFR levels, interests, goals, `isPremium` flag
+- [x] `UserProfileRepository` interface + in-memory impl
+- [x] Onboarding flow in BrainSDK
 
-**4B: Vocabulary & SRS**
-- [ ] `VocabularyEntry` model with SM-2 SRS fields
-- [ ] `SRSScheduler` service for spaced repetition
-- [ ] `VocabularyRepository` interface + in-memory impl
-- [ ] Vocabulary extraction from dialogs
+**4B: Vocabulary & SRS** ✅
+- [x] `VocabularyEntry` model with SM-2 SRS fields
+- [x] `SRSScheduler` service for spaced repetition
+- [x] `VocabularyRepository` interface + in-memory impl
+- [x] Vocabulary extraction from dialogs
 
-**4C: Pedagogical Features (AI Director)**
-- [ ] `SecretObjective` - Information gap missions
-- [ ] `PlayerContext` - Asymmetric difficulty per player
-- [ ] `Feedback` sealed class (NarrativeRecast, PrivateNudge, SessionReport)
-- [ ] `PlotTwist` - Director interventions
-- [ ] Extended `DialogContext` for asymmetric prompts
+**4C: Pedagogical Features (AI Director)** ✅
+- [x] `SecretObjective` - Information gap missions
+- [x] `PlayerContext` - Asymmetric difficulty per player
+- [x] `Feedback` sealed class (NarrativeRecast, PrivateNudge, SessionReport)
+- [x] `PlotTwist` - Director interventions
+- [x] Extended `DialogContext` for asymmetric prompts
 
-**4D: Progress & Gamification**
-- [ ] `UserProgress` model with streaks, XP, levels
-- [ ] `XPCalculator` service
-- [ ] `SessionStats` and `Achievement` models
-- [ ] `ProgressRepository` interface + in-memory impl
+**4D: Progress & Gamification** ✅
+- [x] `UserProgress` model with streaks, XP, levels
+- [x] `XPCalculator` service
+- [x] `SessionStats` and `Achievement` models
+- [x] `ProgressRepository` interface + in-memory impl
 
-**4E: SDK Integration**
-- [ ] Update `BrainSDK` with new methods
-- [ ] Extend `DialogStore` with new intents
-- [ ] Add new `Packet` payload types
-- [ ] Update `SessionState` with pedagogical fields
+**4E: SDK Integration** ✅
+- [x] Update `BrainSDK` with new methods
+- [x] Extend `DialogStore` with new intents
+- [x] Add new `Packet` payload types
+- [x] Update `SessionState` with pedagogical fields
+
+**4F: Chat History** ✅
+- [x] `HistorySession` model — sessionId, scenarioTitle, timestamp, targetLanguage, durationSeconds, dialogLines
+- [x] `HistoryRepository` interface + `HistorySaveResult` sealed class
+- [x] `MockRemoteHistoryRepository` — simulates cloud storage with premium gating (500ms delay, FEATURE_LOCKED for free users)
+- [x] `BrainSDK.history: StateFlow<List<HistorySession>>` exposed
+- [x] `endSession()` auto-saves to history for premium users
+- [x] `UserProfile.isPremium` flag added
 
 ### Phase 5: WebSocket Backend 📋 PLANNED
 
@@ -361,9 +369,11 @@ composeApp/src/
 │   ├── domain/
 │   │   ├── interfaces/
 │   │   │   ├── AIProvider.kt          # AI abstraction
-│   │   │   └── NetworkSession.kt      # Network abstraction
+│   │   │   ├── NetworkSession.kt      # Network abstraction
+│   │   │   └── HistoryRepository.kt   # Chat history interface + HistorySaveResult
 │   │   ├── models/
 │   │   │   ├── DialogLine.kt          # Single dialog entry
+│   │   │   ├── HistorySession.kt      # Chat history session model
 │   │   │   ├── Packet.kt              # Network packet types
 │   │   │   ├── Participant.kt         # Player representation
 │   │   │   ├── SessionState.kt        # Complete game state
@@ -523,7 +533,8 @@ class BrainSDK(
     progressRepository: ProgressRepository = InMemoryProgressRepository(),
     dialogHistoryRepository: DialogHistoryRepository = InMemoryDialogHistoryRepository(),
     translationProvider: TranslationProvider = MockTranslationProvider(),
-    translationCacheRepository: TranslationCacheRepository = InMemoryTranslationCacheRepository()
+    translationCacheRepository: TranslationCacheRepository = InMemoryTranslationCacheRepository(),
+    historyRepository: HistoryRepository = MockRemoteHistoryRepository()
 )
 // Secondary constructors for Swift (Kotlin default params don't export):
 //   BrainSDK()                                          — all in-memory defaults
@@ -536,6 +547,7 @@ class BrainSDK(
 |----------|------|-------------|
 | `state` | `StateFlow<SessionState>` | Observable game state |
 | `aiCapabilities` | `AICapabilities` | Device AI capability info |
+| `history` | `StateFlow<List<HistorySession>>` | Past sessions (premium only) |
 
 #### Methods
 
@@ -649,5 +661,5 @@ data class SessionState(
 
 ---
 
-*Last updated: February 2025*
-*Phases 1-3 complete, Phase 4 planned*
+*Last updated: February 2026*
+*Phases 1-4 complete (including Chat History), Phase 5 planned*

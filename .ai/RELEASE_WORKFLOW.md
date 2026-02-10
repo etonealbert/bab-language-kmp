@@ -36,6 +36,7 @@ git push origin v1.0.7
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 1.0.8 | 2026-02-10 | Chat history feature: HistorySession model, HistoryRepository interface, MockRemoteHistoryRepository with premium gating, BrainSDK.history StateFlow, endSession() auto-save, UserProfile.isPremium |
 | 1.0.7 | 2026-02-10 | SwiftData persistence for UserProfile, secondary constructor for Swift DI, onboarding fix |
 | 1.0.6 | — | Previous release |
 

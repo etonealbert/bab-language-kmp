@@ -14,6 +14,7 @@ data class UserProfile(
     val dailyGoalMinutes: Int,
     val voiceSpeed: VoiceSpeed,
     val showTranslations: TranslationMode,
+    val isPremium: Boolean = false,
     val onboardingCompleted: Boolean,
     val createdAt: Long,
     val lastActiveAt: Long

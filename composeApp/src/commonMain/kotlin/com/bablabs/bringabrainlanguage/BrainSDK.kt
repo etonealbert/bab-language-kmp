@@ -2,6 +2,7 @@ package com.bablabs.bringabrainlanguage
 
 import com.bablabs.bringabrainlanguage.domain.interfaces.AIProvider
 import com.bablabs.bringabrainlanguage.domain.interfaces.DialogHistoryRepository
+import com.bablabs.bringabrainlanguage.domain.interfaces.HistoryRepository
 import com.bablabs.bringabrainlanguage.domain.interfaces.ProgressRepository
 import com.bablabs.bringabrainlanguage.domain.interfaces.SavedSession
 import com.bablabs.bringabrainlanguage.domain.interfaces.TranslationCacheRepository
@@ -21,6 +22,7 @@ import com.bablabs.bringabrainlanguage.infrastructure.repositories.InMemoryProgr
 import com.bablabs.bringabrainlanguage.infrastructure.repositories.InMemoryTranslationCacheRepository
 import com.bablabs.bringabrainlanguage.infrastructure.repositories.InMemoryUserProfileRepository
 import com.bablabs.bringabrainlanguage.infrastructure.repositories.InMemoryVocabularyRepository
+import com.bablabs.bringabrainlanguage.infrastructure.repositories.MockRemoteHistoryRepository
 import com.bablabs.bringabrainlanguage.infrastructure.translation.MockTranslationProvider
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -41,7 +43,8 @@ class BrainSDK(
     private val progressRepository: ProgressRepository = InMemoryProgressRepository(),
     private val dialogHistoryRepository: DialogHistoryRepository = InMemoryDialogHistoryRepository(),
     private val translationProvider: TranslationProvider = MockTranslationProvider(),
-    private val translationCacheRepository: TranslationCacheRepository = InMemoryTranslationCacheRepository()
+    private val translationCacheRepository: TranslationCacheRepository = InMemoryTranslationCacheRepository(),
+    private val historyRepository: HistoryRepository = MockRemoteHistoryRepository()
 ) {
     
     /**
@@ -63,7 +66,8 @@ class BrainSDK(
         progressRepository = InMemoryProgressRepository(),
         dialogHistoryRepository = InMemoryDialogHistoryRepository(),
         translationProvider = MockTranslationProvider(),
-        translationCacheRepository = InMemoryTranslationCacheRepository()
+        translationCacheRepository = InMemoryTranslationCacheRepository(),
+        historyRepository = MockRemoteHistoryRepository()
     )
     
     /**
@@ -86,7 +90,8 @@ class BrainSDK(
         progressRepository = InMemoryProgressRepository(),
         dialogHistoryRepository = InMemoryDialogHistoryRepository(),
         translationProvider = MockTranslationProvider(),
-        translationCacheRepository = InMemoryTranslationCacheRepository()
+        translationCacheRepository = InMemoryTranslationCacheRepository(),
+        historyRepository = MockRemoteHistoryRepository()
     )
     
     private val scope = CoroutineScope(SupervisorJob() + coroutineContext)
@@ -120,6 +125,7 @@ class BrainSDK(
     val progress: StateFlow<UserProgress?> = _progress.asStateFlow()
     val vocabularyEntries: StateFlow<List<VocabularyEntry>> = _vocabularyEntries.asStateFlow()
     val translationCache: StateFlow<Map<String, WordTranslation>> = _translationCache.asStateFlow()
+    val history: StateFlow<List<HistorySession>> = historyRepository.history
     
     val aiCapabilities: AICapabilities
         get() = DeviceCapabilities.check()
@@ -346,8 +352,26 @@ class BrainSDK(
     }
     
     suspend fun endSession() {
+        val currentState = state.value
         dialogStore.accept(DialogStore.Intent.EndSession)
-        dialogHistoryRepository.saveSession(state.value, state.value.sessionStats)
+        dialogHistoryRepository.saveSession(currentState, currentState.sessionStats)
+        
+        val profile = _userProfile.value
+        if (profile != null) {
+            val sessionStats = currentState.sessionStats
+            val now = kotlinx.datetime.Clock.System.now().toEpochMilliseconds()
+            val historySession = HistorySession(
+                sessionId = sessionStats?.sessionId ?: "session_$now",
+                scenarioTitle = currentState.scenario?.name ?: "Unknown",
+                timestamp = now,
+                targetLanguage = profile.currentTargetLanguage,
+                durationSeconds = sessionStats?.let {
+                    ((it.endedAt ?: now) - it.startedAt) / 1000
+                } ?: 0L,
+                dialogLines = currentState.dialogHistory
+            )
+            historyRepository.saveSession(historySession, profile)
+        }
     }
     
     // ==================== BLE MULTIPLAYER ====================

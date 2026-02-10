@@ -718,3 +718,71 @@ totalXP = (baseXP + accuracyBonus + speedBonus + fluencyBonus) × streakMultipli
 - Previous: ~151 tests
 - Added: ~12 tests (7 serialization + 5 XP/turn)
 - Total: ~163 tests
+
+---
+
+## Session: February 10, 2026 - Chat History Feature (Premium Gating)
+
+### Goal
+Implement persistent chat history so iOS users can see past conversations. Mock backend enforces premium-only saves.
+
+### Completed
+
+#### New Model
+- **`HistorySession.kt`** (`domain/models/`) — `@Serializable` data class with:
+  - `sessionId`, `scenarioTitle`, `timestamp`, `targetLanguage`, `durationSeconds`, `dialogLines`
+
+#### New Interface
+- **`HistoryRepository.kt`** (`domain/interfaces/`) — Repository contract + result types:
+  - `HistoryRepository` interface with `history: StateFlow`, `saveSession()`, `getSessions()`, `deleteSession()`, `clear()`
+  - `HistorySaveResult` sealed class — `Success(session)` or `Error(reason)`
+  - `HistoryErrorReason` enum — `FEATURE_LOCKED`, `NETWORK_ERROR`
+
+#### New Implementation
+- **`MockRemoteHistoryRepository.kt`** (`infrastructure/repositories/`) — Simulates cloud backend:
+  - 500ms `delay()` on all operations (network latency simulation)
+  - Premium check: `userProfile.isPremium == true` → save; `false` → `HistorySaveResult.Error(FEATURE_LOCKED)`
+  - In-memory list sorted by timestamp descending
+  - `StateFlow<List<HistorySession>>` updated reactively after mutations
+
+#### Modified Models
+- **`UserProfile.kt`** — Added `val isPremium: Boolean = false` (default preserves backward compatibility)
+
+#### Modified SDK
+- **`BrainSDK.kt`**:
+  - New constructor param: `historyRepository: HistoryRepository = MockRemoteHistoryRepository()`
+  - Both secondary constructors (Swift) updated to include `historyRepository`
+  - New public property: `val history: StateFlow<List<HistorySession>>`
+  - `endSession()` now captures `SessionState` before `DialogStore.Intent.EndSession` mutates it, builds a `HistorySession`, and calls `historyRepository.saveSession(session, profile)`
+
+#### New Test Files
+1. **`MockRemoteHistoryRepositoryTest.kt`** — 7 tests:
+   - Save succeeds for premium
+   - Save returns FEATURE_LOCKED for free user
+   - History flow updates after premium save
+   - History flow unchanged after free save
+   - Sessions sorted by timestamp descending
+   - Delete removes session and updates flow
+   - Clear empties everything
+2. **`BrainSDKHistoryTest.kt`** — 6 tests:
+   - History initially empty
+   - endSession saves for premium
+   - endSession skips save for free user
+   - Multiple sessions accumulate (uses separate SDK instances sharing same repo)
+   - Dialog lines preserved in history
+   - Direct repo test for FEATURE_LOCKED
+
+### Key Design Decisions
+
+| Decision | Rationale |
+|----------|-----------|
+| `HistoryRepository` separate from `DialogHistoryRepository` | Different concern: remote cloud persistence vs local session log |
+| `MockRemoteHistoryRepository` with `delay(500)` | Simulates real network latency for realistic iOS integration testing |
+| Premium check in repository, not SDK | Keeps business logic close to the "backend" simulation |
+| `isPremium` default `false` on `UserProfile` | Zero breaking changes to existing call sites |
+| `endSession()` snapshots state BEFORE `Intent.EndSession` | Avoids capturing empty/reset state after store processes the intent |
+
+### Test Count
+- Previous: ~207 tests
+- Added: 13 tests (7 repo + 6 SDK integration)
+- Total: ~220 tests

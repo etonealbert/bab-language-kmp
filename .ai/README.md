@@ -55,7 +55,8 @@ User Action → Intent → Executor → Packet → NetworkSession → Reducer �
 - **Phase 1**: Core SDK ✅
 - **Phase 2**: BLE Multiplayer ✅
 - **Phase 3**: iOS 26 LLM docs ✅
-- **Phase 4**: Language Learning Features ✅ (207 tests passing)
+- **Phase 4**: Language Learning Features ✅ (220 tests passing)
+- **Phase 4F**: Chat History (premium gating) ✅
 - **Phase 5**: WebSocket backend 📋 (planned)
 
 ## Phase 4 Implementation Summary
@@ -73,6 +74,7 @@ Language learning features are now implemented:
 | Safety Net | Hint system for anxious learners |
 | Plot Twists | AI Director interventions |
 | Progress/XP | Streaks, levels, collaborative stats |
+| Chat History | Premium-only persistent session history |
 
 **Design doc**: `docs/plans/2026-02-05-language-learning-features-design.md`
 **Vocabulary Guide**: `docs/vocabulary-and-translation-guide.md`

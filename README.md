@@ -12,6 +12,7 @@ A Kotlin Multiplatform library providing business logic for a role-playing langu
 | **Multiplayer Mode** | Host/Client architecture via Bluetooth Low Energy |
 | **Language Learning** | SRS vocabulary, CEFR levels, pronunciation tracking |
 | **Gamification** | XP, streaks, leaderboards, achievements |
+| **Chat History** | Premium users get persistent session history |
 | **Headless** | Pure logic - bring your own SwiftUI/Compose UI |
 | **iOS 26 LLM** | Native on-device AI via Foundation Models |
 | **Offline-First** | Works without internet using BLE |
@@ -96,6 +97,7 @@ class BrainSDK(
 | `userProfile` | `StateFlow<UserProfile?>` | Learner profile with CEFR level |
 | `vocabularyStats` | `StateFlow<VocabularyStats>` | SRS vocabulary statistics |
 | `progress` | `StateFlow<UserProgress?>` | XP, streaks, achievements |
+| `history` | `StateFlow<List<HistorySession>>` | Past session history (premium only) |
 | `outgoingPackets` | `Flow<OutgoingPacket>` | Packets for native BLE to transmit |
 
 #### Game Lifecycle
@@ -107,6 +109,7 @@ class BrainSDK(
 | `joinGame(hostDeviceId, roleId)` | Join as client |
 | `generate()` | Generate next AI dialog line |
 | `leaveGame()` | Leave session |
+| `endSession()` | End session and save to history (premium) |
 
 #### Multiplayer (BLE Callbacks)
 
@@ -179,6 +182,19 @@ data class PronunciationResult(
     val wordErrors: List<WordError>,
     val duration: Long,            // Milliseconds
     val skipped: Boolean
+)
+```
+
+### HistorySession
+
+```kotlin
+data class HistorySession(
+    val sessionId: String,
+    val scenarioTitle: String,
+    val timestamp: Long,
+    val targetLanguage: LanguageCode,
+    val durationSeconds: Long,
+    val dialogLines: List<DialogLine>
 )
 ```
 
@@ -259,7 +275,8 @@ composeApp/src/commonMain/kotlin/com/bablabs/bringabrainlanguage/
 │   ├── interfaces/
 │   │   ├── AIProvider.kt            # AI abstraction
 │   │   ├── NetworkSession.kt        # Network abstraction
-│   │   └── *Repository.kt           # Persistence interfaces
+│   │   ├── HistoryRepository.kt      # Chat history interface
+│   │   └── *Repository.kt           # Other persistence interfaces
 │   ├── models/
 │   │   ├── DialogLine.kt            # Dialog with native/translated text
 │   │   ├── SessionState.kt          # Complete game state
@@ -268,6 +285,7 @@ composeApp/src/commonMain/kotlin/com/bablabs/bringabrainlanguage/
 │   │   ├── LobbyModels.kt           # Multiplayer lobby
 │   │   ├── Packet.kt                # Network packet types
 │   │   ├── PacketSerializer.kt      # Packet ↔ ByteArray
+│   │   ├── HistorySession.kt        # Chat history model
 │   │   └── UserProgress.kt          # Streaks, levels, XP
 │   ├── stores/
 │   │   └── DialogStore.kt           # MVI state machine
@@ -280,7 +298,7 @@ composeApp/src/commonMain/kotlin/com/bablabs/bringabrainlanguage/
     ├── network/
     │   ├── LoopbackNetworkSession.kt
     │   └── ble/                     # BLE utilities
-    └── repositories/                # In-memory defaults
+    └── repositories/                # In-memory defaults + MockRemoteHistoryRepository
 ```
 
 ---
