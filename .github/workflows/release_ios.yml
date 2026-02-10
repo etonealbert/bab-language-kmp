@@ -3,7 +3,7 @@ name: Release iOS SDK
 on:
   push:
     tags:
-      - 'v*' # Only trigger when we push a tag like git tag v1.0.1 git push origin v1.0.1
+      - 'v*' 
 
 permissions:
   contents: write # Required to create releases and push changes
@@ -74,6 +74,10 @@ jobs:
         run: |
           git config user.name "GitHub Actions Bot"
           git config user.email "<>"
+          
           git add Package.swift
           git commit -m "Update Package.swift for ${{ github.ref_name }}"
+          
+          git pull origin main --rebase
+          
           git push origin HEAD:main
