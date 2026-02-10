@@ -1,4 +1,4 @@
-# iOS Integration Guide - BabLanguageSDK
+# iOS Integration Guide - BabLanguageSDK v1.0.7
 
 Complete guide for integrating the Bring a Brain language learning SDK into your iOS application.
 
@@ -8,10 +8,11 @@ Complete guide for integrating the Bring a Brain language learning SDK into your
 2. [Requirements](#requirements)
 3. [Installation](#installation)
 4. [Quick Start](#quick-start)
-5. [Core Concepts](#core-concepts)
-6. [Complete Integration Example](#complete-integration-example)
-7. [API Reference](#api-reference)
-8. [Best Practices](#best-practices)
+5. [SwiftData Persistence (Required)](#swiftdata-persistence-required)
+6. [Core Concepts](#core-concepts)
+7. [Complete Integration Example](#complete-integration-example)
+8. [API Reference](#api-reference)
+9. [Best Practices](#best-practices)
 
 ---
 
@@ -36,6 +37,7 @@ BabLanguageSDK is a headless Kotlin Multiplatform SDK that provides all business
 | iOS | 15.0+ |
 | Xcode | 15.0+ |
 | Swift | 5.9+ |
+| SDK | 1.0.7+ |
 | For on-device AI | iOS 26+ |
 
 ---
@@ -73,14 +75,26 @@ composeApp/build/XCFrameworks/release/BabLanguageSDK.xcframework
 
 ### Minimal Implementation
 
+> **Important (v1.0.7+):** Never use the empty `BrainSDK()` constructor in production iOS apps.
+> Always inject a `SwiftDataUserProfileRepository` to persist user data between launches.
+
 ```swift
 import SwiftUI
+import SwiftData
 import BabLanguageSDK
 
 @main
 struct LanguageLearningApp: App {
-    let sdk = BrainSDK()
-    
+    let modelContainer: ModelContainer
+    let sdk: BrainSDK
+
+    init() {
+        let container = try! ModelContainer(for: SDUserProfile.self)
+        self.modelContainer = container
+        let swiftDataRepo = SwiftDataUserProfileRepository(modelContainer: container)
+        self.sdk = BrainSDK(userProfileRepository: swiftDataRepo)
+    }
+
     var body: some Scene {
         WindowGroup {
             ContentView(sdk: sdk)
@@ -91,7 +105,7 @@ struct LanguageLearningApp: App {
 struct ContentView: View {
     let sdk: BrainSDK
     @State private var dialogLines: [DialogLine] = []
-    
+
     var body: some View {
         VStack {
             List(dialogLines, id: \.id) { line in
@@ -101,7 +115,7 @@ struct ContentView: View {
                     Text(line.textTranslated).font(.caption2).foregroundColor(.secondary)
                 }
             }
-            
+
             Button("Generate Dialog") {
                 sdk.generate()
             }
@@ -111,7 +125,6 @@ struct ContentView: View {
             sdk.startSoloGame(scenarioId: "coffee-shop", userRoleId: "customer")
         }
         .task {
-            // SKIE enables native Swift AsyncSequence iteration!
             for await state in sdk.state {
                 dialogLines = state.dialogHistory
             }
@@ -119,6 +132,118 @@ struct ContentView: View {
     }
 }
 ```
+
+---
+
+## SwiftData Persistence (Required)
+
+As of v1.0.7, the iOS app **must** inject a SwiftData-backed repository into `BrainSDK`.
+Without this, user data (profile, onboarding state) is lost on every app restart.
+
+### Why This Is Required
+
+The KMP SDK defaults to `InMemoryUserProfileRepository` — data lives only in RAM.
+This caused a bug where `isOnboardingRequired()` always returned `true` after relaunch.
+Injecting `SwiftDataUserProfileRepository` fixes this by persisting to disk via SwiftData.
+
+### The SwiftData Model
+
+`SDUserProfile` is the local SwiftData model. It maps 1:1 to the KMP `UserProfile`:
+
+```swift
+import SwiftData
+
+@Model
+class SDUserProfile {
+    @Attribute(.unique) var id: String
+    var displayName: String
+    var nativeLanguage: String
+    var currentTargetLanguage: String
+    var onboardingCompleted: Bool
+    var createdAt: Int64
+    var lastActiveAt: Int64
+    // Add additional fields as needed to match KMP UserProfile
+}
+```
+
+### The Repository Bridge
+
+`SwiftDataUserProfileRepository` bridges SwiftData ↔ KMP:
+
+```swift
+import BabLanguageSDK
+import SwiftData
+
+class SwiftDataUserProfileRepository: NSObject, UserProfileRepository {
+    private let modelContainer: ModelContainer
+
+    init(modelContainer: ModelContainer) {
+        self.modelContainer = modelContainer
+    }
+
+    @MainActor
+    func getProfile() async -> UserProfile? {
+        let context = modelContainer.mainContext
+        let descriptor = FetchDescriptor<SDUserProfile>()
+        guard let sdProfile = try? context.fetch(descriptor).first else { return nil }
+        return sdProfile.toKMPProfile()
+    }
+
+    @MainActor
+    func saveProfile(profile: UserProfile) async {
+        let context = modelContainer.mainContext
+        let sdProfile = SDUserProfile.fromKMP(profile)
+        context.insert(sdProfile)
+        try? context.save()
+    }
+
+    // Implement remaining UserProfileRepository methods...
+}
+```
+
+### Model Mapping
+
+```swift
+extension SDUserProfile {
+    func toKMPProfile() -> UserProfile {
+        return UserProfile(
+            id: id,
+            displayName: displayName,
+            nativeLanguage: nativeLanguage,
+            targetLanguages: [], // Map from related SwiftData models
+            currentTargetLanguage: currentTargetLanguage,
+            interests: [],
+            learningGoals: [],
+            dailyGoalMinutes: 15,
+            voiceSpeed: .normal,
+            showTranslations: .onTap,
+            onboardingCompleted: onboardingCompleted,
+            createdAt: createdAt,
+            lastActiveAt: lastActiveAt
+        )
+    }
+
+    static func fromKMP(_ profile: UserProfile) -> SDUserProfile {
+        let sd = SDUserProfile()
+        sd.id = profile.id
+        sd.displayName = profile.displayName
+        sd.nativeLanguage = profile.nativeLanguage
+        sd.currentTargetLanguage = profile.currentTargetLanguage
+        sd.onboardingCompleted = profile.onboardingCompleted
+        sd.createdAt = profile.createdAt
+        sd.lastActiveAt = profile.lastActiveAt
+        return sd
+    }
+}
+```
+
+### Onboarding Persistence
+
+`isOnboardingRequired()` now checks the persistent SwiftData store:
+
+1. On first launch: SwiftData has no `SDUserProfile` → SDK gets `nil` from `getProfile()` → `isOnboardingRequired()` returns `true`
+2. User completes onboarding → `completeOnboarding(profile:)` saves to SwiftData via the injected repository
+3. On subsequent launches: SwiftData returns the saved profile → `isOnboardingRequired()` returns `false`
 
 ---
 
@@ -334,6 +459,7 @@ MyLanguageApp/
 
 ```swift
 import SwiftUI
+import SwiftData
 import BabLanguageSDK
 import Combine
 
@@ -349,7 +475,9 @@ class SDKObserver: ObservableObject {
     
     private var observationTasks: [Task<Void, Never>] = []
     
-    init(sdk: BrainSDK = BrainSDK()) {
+    init(modelContainer: ModelContainer) {
+        let swiftDataRepo = SwiftDataUserProfileRepository(modelContainer: modelContainer)
+        let sdk = BrainSDK(userProfileRepository: swiftDataRepo)
         self.sdk = sdk
         self.sessionState = sdk.state.value
         self.userProfile = sdk.userProfile.value
@@ -789,11 +917,17 @@ struct StatCard: View {
 ### 1. SDK Lifecycle
 
 ```swift
-// Create SDK once at app launch
 @main
 struct MyApp: App {
-    @StateObject private var observer = SDKObserver()
-    
+    let modelContainer: ModelContainer
+    @StateObject private var observer: SDKObserver
+
+    init() {
+        let container = try! ModelContainer(for: SDUserProfile.self)
+        self.modelContainer = container
+        _observer = StateObject(wrappedValue: SDKObserver(modelContainer: container))
+    }
+
     var body: some Scene {
         WindowGroup {
             ContentView()
@@ -833,26 +967,29 @@ class FoundationModelProvider: AIProvider {
 let sdk = BrainSDK(aiProvider: FoundationModelProvider())
 ```
 
-### 4. Custom Persistence
+### 4. Persistence (SwiftData Required)
 
 ```swift
 import BabLanguageSDK
+import SwiftData
 
-class CoreDataUserProfileRepository: UserProfileRepository {
-    func getProfile() async -> UserProfile? {
-        // Fetch from Core Data
+// SDUserProfile is the local SwiftData model
+// UserProfile is the KMP model from the SDK
+// SwiftDataUserProfileRepository bridges between them
+
+class SwiftDataUserProfileRepository: NSObject, UserProfileRepository {
+    private let modelContainer: ModelContainer
+
+    init(modelContainer: ModelContainer) {
+        self.modelContainer = modelContainer
     }
-    
-    func saveProfile(profile: UserProfile) async {
-        // Save to Core Data
-    }
-    // ... implement other methods
+    // ... implement UserProfileRepository methods
 }
 
-let sdk = BrainSDK(
-    userProfileRepository: CoreDataUserProfileRepository(),
-    vocabularyRepository: CoreDataVocabularyRepository()
-)
+// Inject at initialization — NEVER use BrainSDK() empty constructor
+let container = try! ModelContainer(for: SDUserProfile.self)
+let swiftDataRepo = SwiftDataUserProfileRepository(modelContainer: container)
+let sdk = BrainSDK(userProfileRepository: swiftDataRepo)
 ```
 
 ### 5. Background State Sync

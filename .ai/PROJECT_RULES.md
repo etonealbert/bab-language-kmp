@@ -474,6 +474,12 @@ Key libraries used:
    - SDK should be minimal
    - Each dependency adds to app size
 
+6. **Use `BrainSDK()` empty constructor in iOS apps**
+   - The empty constructor uses `InMemoryUserProfileRepository` — data is lost on restart
+   - ALWAYS inject `SwiftDataUserProfileRepository` for iOS production apps
+   - Correct: `BrainSDK(userProfileRepository: swiftDataRepo)`
+   - Wrong: `BrainSDK()` (only acceptable in Kotlin tests or Android prototyping)
+
 ### ALWAYS
 
 1. **Write tests first (TDD)**
@@ -496,6 +502,12 @@ Key libraries used:
    - Look at similar code before adding new
    - Consistency > cleverness
 
+6. **Map SwiftData ↔ KMP models in the repository bridge**
+   - `SDUserProfile` is the local SwiftData model
+   - `UserProfile` is the KMP model from the SDK
+   - `SwiftDataUserProfileRepository` bridges between them
+   - Add secondary constructors to `BrainSDK.kt` for any new single-repository injection patterns Swift needs
+
 ---
 
 ## API Reference
@@ -505,8 +517,17 @@ Key libraries used:
 ```kotlin
 class BrainSDK(
     aiProvider: AIProvider? = null,  // Custom AI provider (optional)
-    coroutineContext: CoroutineContext = Dispatchers.Default
+    coroutineContext: CoroutineContext = Dispatchers.Default,
+    userProfileRepository: UserProfileRepository = InMemoryUserProfileRepository(),
+    vocabularyRepository: VocabularyRepository = InMemoryVocabularyRepository(),
+    progressRepository: ProgressRepository = InMemoryProgressRepository(),
+    dialogHistoryRepository: DialogHistoryRepository = InMemoryDialogHistoryRepository(),
+    translationProvider: TranslationProvider = MockTranslationProvider(),
+    translationCacheRepository: TranslationCacheRepository = InMemoryTranslationCacheRepository()
 )
+// Secondary constructors for Swift (Kotlin default params don't export):
+//   BrainSDK()                                          — all in-memory defaults
+//   BrainSDK(userProfileRepository: UserProfileRepository) — inject custom profile repo
 ```
 
 #### Properties

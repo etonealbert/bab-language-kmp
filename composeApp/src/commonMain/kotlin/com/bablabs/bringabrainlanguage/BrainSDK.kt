@@ -66,6 +66,29 @@ class BrainSDK(
         translationCacheRepository = InMemoryTranslationCacheRepository()
     )
     
+    /**
+     * Convenience constructor for iOS/Swift with custom [UserProfileRepository].
+     * 
+     * Enables injecting a platform-specific persistence layer (e.g., SwiftData, CoreData)
+     * for user profiles while keeping in-memory defaults for everything else.
+     * 
+     * Usage (Swift):
+     * ```swift
+     * let repo = SwiftDataUserProfileRepository()
+     * let sdk = BrainSDK(userProfileRepository: repo)
+     * ```
+     */
+    constructor(userProfileRepository: UserProfileRepository) : this(
+        aiProvider = null,
+        coroutineContext = Dispatchers.Default,
+        userProfileRepository = userProfileRepository,
+        vocabularyRepository = InMemoryVocabularyRepository(),
+        progressRepository = InMemoryProgressRepository(),
+        dialogHistoryRepository = InMemoryDialogHistoryRepository(),
+        translationProvider = MockTranslationProvider(),
+        translationCacheRepository = InMemoryTranslationCacheRepository()
+    )
+    
     private val scope = CoroutineScope(SupervisorJob() + coroutineContext)
     
     private val networkSession = LoopbackNetworkSession(

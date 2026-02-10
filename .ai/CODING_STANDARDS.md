@@ -303,6 +303,48 @@ if (Platform.isIOS) { /* iOS code */ } // BAD
 expect fun getPlatformName(): String
 ```
 
+## iOS / Swift Interop Rules
+
+### BrainSDK Initialization (v1.0.7+)
+
+```swift
+// ❌ NEVER in iOS production apps:
+let sdk = BrainSDK()  // Uses InMemoryUserProfileRepository — data lost on restart
+
+// ✅ ALWAYS inject SwiftData repository:
+let container = try! ModelContainer(for: SDUserProfile.self)
+let swiftDataRepo = SwiftDataUserProfileRepository(modelContainer: container)
+let sdk = BrainSDK(userProfileRepository: swiftDataRepo)
+```
+
+### Swift Constructor Limitations
+
+Kotlin default parameter values are NOT exported to Swift as separate overloads.
+When Swift needs to call `BrainSDK` with a subset of parameters, add a **secondary
+constructor** in `BrainSDK.kt`:
+
+```kotlin
+// BrainSDK.kt — secondary constructor for Swift
+constructor(userProfileRepository: UserProfileRepository) : this(
+    aiProvider = null,
+    coroutineContext = Dispatchers.Default,
+    userProfileRepository = userProfileRepository,
+    vocabularyRepository = InMemoryVocabularyRepository(),
+    progressRepository = InMemoryProgressRepository(),
+    dialogHistoryRepository = InMemoryDialogHistoryRepository(),
+    translationProvider = MockTranslationProvider(),
+    translationCacheRepository = InMemoryTranslationCacheRepository()
+)
+```
+
+### SwiftData ↔ KMP Model Mapping
+
+| Swift (SwiftData) | KMP (SDK) | Bridge |
+|-------------------|-----------|--------|
+| `SDUserProfile` | `UserProfile` | `SwiftDataUserProfileRepository` |
+
+The repository class maps between the two models using `toKMPProfile()` and `fromKMP()` extensions.
+
 ## File Templates
 
 ### New Model
