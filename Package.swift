@@ -16,8 +16,8 @@ let package = Package(
     targets: [
         .binaryTarget(
             name: "BabLanguageSDK",
-            url: "https://github.com/etonealbert/bab-language-kmp/releases/download/v1.0.7/BabLanguageSDK.xcframework.zip",
-            checksum: "1f54573ca5d67ecd9aa4a399c21e47bafbb3009449e23c1c93d51b33b5b39b83"
+            url: "https://github.com/etonealbert/bab-language-kmp/releases/download/v1.0.9/BabLanguageSDK.xcframework.zip",
+            checksum: "c521e185da02c4c1900843d66ae591ef35c2b0c80d23e6ffa4d80eb98d34d000"
         ),
     ]
 )
