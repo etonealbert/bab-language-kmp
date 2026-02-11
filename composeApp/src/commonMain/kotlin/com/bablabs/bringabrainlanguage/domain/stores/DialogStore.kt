@@ -351,6 +351,71 @@ class DialogStore(
                     vectorClock = _state.value.vectorClock.increment(networkSession.localPeerId)
                 )
             }
+            
+            is Intent.SetLobbyScenario -> {
+                val updatedLobby = _state.value.lobbyState.copy(
+                    selectedScenarioId = intent.scenarioId
+                )
+                _state.value = _state.value.copy(
+                    lobbyState = updatedLobby,
+                    vectorClock = _state.value.vectorClock.increment(networkSession.localPeerId)
+                )
+                if (isMultiplayerMode()) {
+                    emitPacketToPeers(
+                        PacketType.LOBBY_UPDATE,
+                        PacketPayload.LobbyUpdate(updatedLobby)
+                    )
+                }
+            }
+            
+            is Intent.SetLobbyDifficulty -> {
+                val updatedLobby = _state.value.lobbyState.copy(
+                    difficultyLevel = intent.difficultyLevel
+                )
+                _state.value = _state.value.copy(
+                    lobbyState = updatedLobby,
+                    vectorClock = _state.value.vectorClock.increment(networkSession.localPeerId)
+                )
+                if (isMultiplayerMode()) {
+                    emitPacketToPeers(
+                        PacketType.LOBBY_UPDATE,
+                        PacketPayload.LobbyUpdate(updatedLobby)
+                    )
+                }
+            }
+            
+            is Intent.ClientJoinLobby -> {
+                val updatedLobby = _state.value.lobbyState.copy(
+                    connectedPlayers = _state.value.lobbyState.connectedPlayers + intent.profile
+                )
+                _state.value = _state.value.copy(
+                    lobbyState = updatedLobby,
+                    vectorClock = _state.value.vectorClock.increment(networkSession.localPeerId)
+                )
+                if (isMultiplayerMode()) {
+                    emitPacketToPeers(
+                        PacketType.LOBBY_UPDATE,
+                        PacketPayload.LobbyUpdate(updatedLobby)
+                    )
+                }
+            }
+            
+            is Intent.StartGame -> {
+                val lobby = _state.value.lobbyState
+                if (lobby.selectedScenarioId.isEmpty()) return
+                
+                _state.value = _state.value.copy(
+                    currentPhase = GamePhase.ACTIVE,
+                    isAdvertising = false,
+                    vectorClock = _state.value.vectorClock.increment(networkSession.localPeerId)
+                )
+                if (isMultiplayerMode()) {
+                    emitPacketToPeers(
+                        PacketType.START_GAME,
+                        PacketPayload.StartGame
+                    )
+                }
+            }
         }
     }
     
@@ -479,6 +544,27 @@ class DialogStore(
                 sessionLeaderboard = payload.leaderboard,
                 vectorClock = mergedClock
             )
+            
+            is PacketPayload.LobbyUpdate -> currentState.copy(
+                lobbyState = payload.lobbyState,
+                vectorClock = mergedClock
+            )
+            
+            is PacketPayload.ClientJoin -> {
+                val updatedLobby = currentState.lobbyState.copy(
+                    connectedPlayers = currentState.lobbyState.connectedPlayers + payload.profile
+                )
+                currentState.copy(
+                    lobbyState = updatedLobby,
+                    vectorClock = mergedClock
+                )
+            }
+            
+            is PacketPayload.StartGame -> currentState.copy(
+                currentPhase = GamePhase.ACTIVE,
+                isAdvertising = false,
+                vectorClock = mergedClock
+            )
         }
         
         _state.value = newState
@@ -557,6 +643,18 @@ class DialogStore(
         ) : Intent()
         
         data object StartMultiplayerGame : Intent()
+        
+        /** Host sets the selected scenario in the lobby. Broadcasts to clients. */
+        data class SetLobbyScenario(val scenarioId: String) : Intent()
+        
+        /** Host sets the difficulty level in the lobby. Broadcasts to clients. */
+        data class SetLobbyDifficulty(val difficultyLevel: String) : Intent()
+        
+        /** Client announces presence to host with their profile. */
+        data class ClientJoinLobby(val profile: PlayerProfile) : Intent()
+        
+        /** Host signals transition from lobby to active game. */
+        data object StartGame : Intent()
     }
     
     private fun isMultiplayerMode(): Boolean {

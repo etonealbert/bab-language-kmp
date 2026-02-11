@@ -417,6 +417,49 @@ class BrainSDK(
         dialogStore.accept(DialogStore.Intent.StartMultiplayerGame)
     }
     
+    // ==================== LOBBY STATE SYNC ====================
+    
+    /**
+     * Host sets the selected scenario in the lobby.
+     * 
+     * Updates local [LobbyState.selectedScenarioId] and broadcasts a
+     * [PacketPayload.LobbyUpdate] to all connected Clients.
+     */
+    fun setLobbyScenario(scenarioId: String) {
+        dialogStore.accept(DialogStore.Intent.SetLobbyScenario(scenarioId))
+    }
+    
+    /**
+     * Host sets the difficulty level in the lobby.
+     * 
+     * Updates local [LobbyState.difficultyLevel] and broadcasts a
+     * [PacketPayload.LobbyUpdate] to all connected Clients.
+     */
+    fun setLobbyDifficulty(difficultyLevel: String) {
+        dialogStore.accept(DialogStore.Intent.SetLobbyDifficulty(difficultyLevel))
+    }
+    
+    /**
+     * Registers a client player profile in the lobby.
+     * 
+     * Adds the [PlayerProfile] to [LobbyState.connectedPlayers] and broadcasts
+     * the updated lobby state to all peers.
+     */
+    fun onClientJoined(profile: PlayerProfile) {
+        dialogStore.accept(DialogStore.Intent.ClientJoinLobby(profile))
+    }
+    
+    /**
+     * Host starts the game after lobby configuration is complete.
+     * 
+     * Validates that a scenario has been selected, transitions to [GamePhase.ACTIVE],
+     * and broadcasts a [PacketPayload.StartGame] packet to all connected Clients.
+     * Does nothing if [LobbyState.selectedScenarioId] is empty.
+     */
+    fun startLobbyGame() {
+        dialogStore.accept(DialogStore.Intent.StartGame)
+    }
+    
     fun getAvailableScenarios(): List<Scenario> {
         return listOf(
             getScenarioById("coffee-shop"),

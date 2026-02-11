@@ -35,7 +35,9 @@ data class SessionState(
     
     val playerStats: Map<String, PlayerStats> = emptyMap(),
     val sessionLeaderboard: SessionLeaderboard? = null,
-    val sessionSummary: SessionSummary? = null
+    val sessionSummary: SessionSummary? = null,
+    
+    val lobbyState: LobbyState = LobbyState()
 )
 
 @Serializable

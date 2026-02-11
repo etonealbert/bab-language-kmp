@@ -26,7 +26,10 @@ enum class PacketType {
     PLAYER_READY,
     GAME_STARTED,
     TURN_ADVANCED,
-    LEADERBOARD_UPDATE
+    LEADERBOARD_UPDATE,
+    LOBBY_UPDATE,
+    CLIENT_JOIN,
+    START_GAME
 }
 
 @Serializable
@@ -96,6 +99,25 @@ sealed class PacketPayload {
     data class LeaderboardUpdate(
         val leaderboard: SessionLeaderboard
     ) : PacketPayload()
+    
+    /**
+     * Sent by Host to all Clients whenever lobby settings change.
+     * Contains the full [LobbyState] snapshot.
+     */
+    @Serializable
+    data class LobbyUpdate(val lobbyState: LobbyState) : PacketPayload()
+    
+    /**
+     * Sent by Client to Host upon connection to announce presence.
+     */
+    @Serializable
+    data class ClientJoin(val profile: PlayerProfile) : PacketPayload()
+    
+    /**
+     * Sent by Host to signal transition from lobby to active game.
+     */
+    @Serializable
+    data object StartGame : PacketPayload()
 }
 
 @Serializable

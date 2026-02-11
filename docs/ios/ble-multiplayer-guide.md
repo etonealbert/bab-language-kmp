@@ -823,6 +823,163 @@ struct StatBox: View {
 }
 ```
 
+### 7. Lobby State Sync (Pre-Session)
+
+The SDK supports a **Lobby Phase** before the game starts, where the Host selects a Scenario and Difficulty and all connected Clients see these changes in real-time.
+
+#### How It Works
+
+```
+Host selects scenario → setLobbyScenario("coffee-shop")
+  → Updates local SessionState.lobbyState
+  → Broadcasts LobbyUpdatePacket to all Clients via BLE
+
+Client receives packet → onDataReceived()
+  → SDK Reducer applies LobbyUpdate → SessionState.lobbyState updated
+  → SDKObserver publishes change → SwiftUI re-renders
+```
+
+#### SDKObserver Integration
+
+The `lobbyState` is embedded in `SessionState`, so the existing `for await state in sdk.state` loop picks it up automatically:
+
+```swift
+@MainActor
+class SDKObserver: ObservableObject {
+    let sdk: BrainSDK
+    
+    @Published var sessionState: SessionState
+    @Published var lobbyState: LobbyState  // New
+    
+    // ... existing properties ...
+    
+    private func startObserving() {
+        observationTasks.append(Task {
+            for await state in sdk.state {
+                self.sessionState = state
+                self.lobbyState = state.lobbyState  // Automatically synced
+                self.lobbyPlayers = state.lobbyPlayers
+                // ... existing assignments ...
+            }
+        })
+    }
+}
+```
+
+#### Host: Lobby Configuration View
+
+```swift
+struct LobbyConfigView: View {
+    @EnvironmentObject var observer: SDKObserver
+    
+    let scenarios = ["coffee-shop", "the-heist", "first-date"]
+    let difficulties = ["easy", "normal", "hard"]
+    
+    var body: some View {
+        VStack(spacing: 20) {
+            Text("Game Setup")
+                .font(.title)
+            
+            // Scenario picker
+            Picker("Scenario", selection: scenarioBinding) {
+                ForEach(scenarios, id: \.self) { Text($0) }
+            }
+            
+            // Difficulty picker
+            Picker("Difficulty", selection: difficultyBinding) {
+                ForEach(difficulties, id: \.self) { Text($0) }
+            }
+            
+            // Connected players
+            Section("Players (\(observer.lobbyState.connectedPlayers.count))") {
+                ForEach(observer.lobbyState.connectedPlayers, id: \.playerId) { player in
+                    Text(player.displayName)
+                }
+            }
+            
+            // Start game
+            Button("Start Game") {
+                observer.sdk.startLobbyGame()
+            }
+            .disabled(observer.lobbyState.selectedScenarioId.isEmpty())
+        }
+    }
+    
+    private var scenarioBinding: Binding<String> {
+        Binding(
+            get: { observer.lobbyState.selectedScenarioId },
+            set: { observer.sdk.setLobbyScenario(scenarioId: $0) }
+        )
+    }
+    
+    private var difficultyBinding: Binding<String> {
+        Binding(
+            get: { observer.lobbyState.difficultyLevel },
+            set: { observer.sdk.setLobbyDifficulty(difficultyLevel: $0) }
+        )
+    }
+}
+```
+
+#### Client: Waiting View
+
+Clients don't need to call any special methods — the SDK automatically updates `lobbyState` when a `LobbyUpdatePacket` arrives:
+
+```swift
+struct ClientLobbyView: View {
+    @EnvironmentObject var observer: SDKObserver
+    
+    var body: some View {
+        VStack(spacing: 16) {
+            if observer.lobbyState.selectedScenarioId.isEmpty() {
+                Text("Waiting for host to select a scenario...")
+                    .foregroundColor(.secondary)
+            } else {
+                Text("Scenario: \(observer.lobbyState.selectedScenarioId)")
+                    .font(.headline)
+                Text("Difficulty: \(observer.lobbyState.difficultyLevel)")
+                    .foregroundColor(.secondary)
+            }
+            
+            ProgressView()
+                .padding()
+            Text("Waiting for host to start...")
+        }
+    }
+}
+```
+
+#### Detecting Game Start
+
+Check `currentPhase` to transition from lobby to active game:
+
+```swift
+// In your navigation logic
+.onChange(of: observer.sessionState.currentPhase) { phase in
+    if phase == .active {
+        // Navigate to Theater / Active Game View
+        navigateToGame()
+    }
+}
+```
+
+#### New SDK Methods
+
+| Method | Side | Description |
+|--------|------|-------------|
+| `setLobbyScenario(scenarioId:)` | Host | Set scenario, broadcasts to clients |
+| `setLobbyDifficulty(difficultyLevel:)` | Host | Set difficulty, broadcasts to clients |
+| `onClientJoined(profile:)` | Host | Register a client player profile |
+| `startLobbyGame()` | Host | Validate & start game, broadcasts to clients |
+
+#### New Packet Types
+
+| Packet | Direction | Purpose |
+|--------|-----------|---------|
+| `LOBBY_UPDATE` | Host → Clients | Full `LobbyState` snapshot on any change |
+| `CLIENT_JOIN` | Client → Host | Client announces presence with `PlayerProfile` |
+| `START_GAME` | Host → Clients | Signal transition to active game |
+
 ## Troubleshooting
 
 ### Common Issues
